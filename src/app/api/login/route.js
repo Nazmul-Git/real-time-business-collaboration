@@ -48,6 +48,7 @@ export async function POST(req) {
       // Store OTP and expiration time in the database
       user.otpCode = otpCode.toString();
       user.otpExpires = otpExpires;
+      user.twoFactorEnabled= true;
       await user.save();
 
       // Send OTP via Email

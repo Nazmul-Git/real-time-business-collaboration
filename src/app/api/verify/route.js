@@ -14,7 +14,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ message: "User not found" }), { status: 400 });
     }
 
-    if (user.twoFactorEnabled) {
+    if (!user.twoFactorEnabled) {
       return new Response(JSON.stringify({ message: "2FA is not enabled" }), { status: 400 });
     }
 
