@@ -39,25 +39,22 @@ export async function POST(req) {
       return Response.json({ message: "Invalid email or password" }, { status: 400 });
     }
 
-    // ✅ Enforce Two-Factor Authentication Before Login
+    // Enforce Two-Factor Authentication 
     if (!user.twoFactorEnabled) {
-      // OTP logic here only if two-factor is enabled
       const otpCode = Math.floor(100000 + Math.random() * 900000);
-      const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      const otpExpires = Date.now() + 10 * 60 * 1000; 
 
       // Store OTP and expiration time in the database
       user.otpCode = otpCode.toString();
       user.otpExpires = otpExpires;
       user.twoFactorEnabled= true;
       await user.save();
-
-      // Send OTP via Email
       await sendOtpEmail(user.email, otpCode);
 
       return Response.json({ twoFactorEnabled: true, message: "OTP sent to your email" }, { status: 200 });
     }
 
-    // ✅ Generate JWT Only If 2FA is Not Required
+    // Generate JWT Only If 2FA is Not Required
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
     return Response.json({ message: "Login successful", token }, { status: 200 });
