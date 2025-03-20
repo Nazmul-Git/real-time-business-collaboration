@@ -5,8 +5,13 @@ import { useState, useEffect } from "react";
 export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState({ title: "", status: "todo", project: "", description: "" });
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
     fetchTasks();
   }, []);
 
@@ -78,13 +83,17 @@ export default function Tasks() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Task Management</h1>
 
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">Add Task</h2>
-          <input type="text" placeholder="Task Title" className="border p-2 rounded w-full mb-2" value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })} />
-          <input type="text" placeholder="Project Name" className="border p-2 rounded w-full mb-2" value={newTask.project} onChange={e => setNewTask({ ...newTask, project: e.target.value })} />
-          <textarea placeholder="Description" className="border p-2 rounded w-full mb-2" value={newTask.description} onChange={e => setNewTask({ ...newTask, description: e.target.value })} />
-          <button onClick={handleAddTask} className="bg-blue-500 text-white px-4 py-2 rounded">Add Task</button>
-        </div>
+        {
+          user && user.role === 'admin' &&
+
+          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">Add Task</h2>
+            <input type="text" placeholder="Task Title" className="border p-2 rounded w-full mb-2" value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })} />
+            <input type="text" placeholder="Project Name" className="border p-2 rounded w-full mb-2" value={newTask.project} onChange={e => setNewTask({ ...newTask, project: e.target.value })} />
+            <textarea placeholder="Description" className="border p-2 rounded w-full mb-2" value={newTask.description} onChange={e => setNewTask({ ...newTask, description: e.target.value })} />
+            <button onClick={handleAddTask} className="bg-blue-500 cursor-pointer text-white px-4 py-2 rounded">Add Task</button>
+          </div>
+        }
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {["todo", "in-progress", "done"].map(status => (
@@ -97,12 +106,12 @@ export default function Tasks() {
                   <p className="text-xs text-gray-400">{task.description}</p>
                   <div className="mt-2 flex gap-2">
                     {task.status !== "done" && (
-                      <button onClick={() => handleUpdateStatus(task._id, task.status === "todo" ? "in-progress" : "done", task.status)} className="bg-green-500 text-white px-3 py-1 rounded text-sm">Move to {task.status === "todo" ? "In-Progress" : "Done"}</button>
+                      <button onClick={() => handleUpdateStatus(task._id, task.status === "todo" ? "in-progress" : "done", task.status)} className="bg-green-500 cursor-pointer text-white px-3 py-1 rounded text-sm">Move to {task.status === "todo" ? "In-Progress" : "Done"}</button>
                     )}
                     {task.prevStatus && (
-                      <button onClick={() => handleUndoStatus(task._id, task.prevStatus)} className="bg-yellow-500 text-white px-3 py-1 rounded text-sm">Undo</button>
+                      <button onClick={() => handleUndoStatus(task._id, task.prevStatus)} className="bg-yellow-500 cursor-pointer text-white px-3 py-1 rounded text-sm">Undo</button>
                     )}
-                    <button onClick={() => handleDeleteTask(task._id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">Delete</button>
+                    <button onClick={() => handleDeleteTask(task._id)} className="bg-red-500 text-white px-3 py-1 cursor-pointer rounded text-sm">Delete</button>
                   </div>
                 </div>
               ))}

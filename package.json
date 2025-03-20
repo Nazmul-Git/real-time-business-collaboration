@@ -11,6 +11,7 @@
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "bcryptjs": "^3.0.2",
+    "framer-motion": "^12.5.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.12.1",
     "next": "15.2.3",

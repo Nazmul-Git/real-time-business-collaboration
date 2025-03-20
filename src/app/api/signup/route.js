@@ -4,7 +4,7 @@ import User from "@/app/models/User";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
-  const { name, email, password } = await req.json();
+  const { name, email, password, role } = await req.json();
 
   try {
     dbConnect();
@@ -20,7 +20,7 @@ export async function POST(req) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = new User({ name, email, password: hashedPassword });
+    const newUser = new User({ name, email, password: hashedPassword, role });
     await newUser.save();
 
     return NextResponse.json(

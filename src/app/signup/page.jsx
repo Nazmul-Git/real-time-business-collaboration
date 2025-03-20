@@ -1,11 +1,15 @@
-'use client'
+'use client';
+
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; 
 
 export default function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+  const router = useRouter(); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -14,10 +18,10 @@ export default function Signup() {
       name,
       email,
       password,
+      role,
     };
 
     try {
-      console.log(process.env.NEXT_PUBLIC_API_URL)
       const response = await fetch(`http://localhost:3000/api/signup`, {
         method: "POST",
         headers: {
@@ -29,6 +33,14 @@ export default function Signup() {
       const result = await response.json();
 
       if (response.ok) {
+        const user = { name, email, role };
+        localStorage.setItem('user', JSON.stringify(user));
+
+        setName("");
+        setEmail("");
+        setPassword("");
+        setRole("user");
+        router.push("/login"); 
         alert("Account created successfully!");
       } else {
         alert(result.message || "Something went wrong!");
@@ -74,16 +86,27 @@ export default function Signup() {
               required
             />
           </div>
+          <div className="mb-6">
+            <label className="block text-gray-700 mb-2">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+            className="w-full bg-blue-500 text-white py-2 rounded-lg cursor-pointer hover:bg-blue-600"
           >
             Sign Up
           </button>
         </form>
         <p className="mt-4 text-center text-gray-600">
           Already have an account?{" "}
-          <Link href="/login" className="text-blue-500 hover:underline">
+          <Link href="/login" className="text-blue-500 cursor-pointer hover:underline">
             Login
           </Link>
         </p>

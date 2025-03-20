@@ -6,8 +6,8 @@ const TaskSchema = new mongoose.Schema(
         description: { type: String },
         project: { type: String, required: true },
         status: { type: String, enum: ["todo", "in-progress", "done"], default: "todo" },
-        prevStatus: { type: String, default: null }, // Store previous status for undo
-        currentStatus: { type: String, enum: ["todo", "in-progress", "done"], default: "todo" }, // Store the current status
+        prevStatus: { type: String, default: null }, 
+        currentStatus: { type: String, enum: ["todo", "in-progress", "done"], default: "todo" }, 
       },
       { timestamps: true }
 );

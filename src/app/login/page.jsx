@@ -28,8 +28,6 @@ export default function Login() {
       if (res.status === 200) {
         if (data.twoFactorEnabled) {
           setShowOtpField(true);
-          //logic for send otp on mail
-
         } else {
           localStorage.setItem("token", data.token);
           router.push("/dashboard");
@@ -115,7 +113,7 @@ export default function Login() {
           )}
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+            className="w-full bg-blue-500 text-white py-2 cursor-pointer rounded-lg hover:bg-blue-600"
           >
             {showOtpField ? "Verify OTP" : "Login"}
           </button>
@@ -123,7 +121,7 @@ export default function Login() {
         {!showOtpField && (
           <p className="mt-4 text-center text-gray-600">
             Don't have an account?{" "}
-            <Link href="/signup" className="text-blue-500 hover:underline">
+            <Link href="/signup" className="text-blue-500 cursor-pointer hover:underline">
               Sign Up
             </Link>
           </p>
