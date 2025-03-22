@@ -40,13 +40,10 @@ export async function POST(req) {
       project,
       currentStatus: status || "todo",
       userIds: objectIdUserIds,
-      dueDate: formattedDueDate, // Ensure dueDate is included
+      dueDate: formattedDueDate,
     });
 
-    // Save the task to the database
     await newTask.save();
-
-    // Log the saved task for debugging
     console.log("Saved Task:", newTask);
 
     return NextResponse.json(newTask, { status: 201 });

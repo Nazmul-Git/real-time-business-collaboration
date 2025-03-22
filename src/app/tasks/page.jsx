@@ -108,15 +108,39 @@ export default function Tasks() {
   };
 
   const handleUpdateStatus = async (id, newStatus, previousStatus) => {
-    setTasks(tasks.map(task => task._id === id ? { ...task, status: newStatus, prevStatus: previousStatus } : task));
-    try {
-      await fetch(`http://localhost:3000/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus, prevStatus: previousStatus }),
-      });
-    } catch (error) {
-      console.error("Error updating task status:", error);
+    if (newStatus === "done") {
+      try {
+        // Find the task to be moved
+        const taskToMove = tasks.find(task => task._id === id);
+
+        // Call the API to move the task to the projects table
+        const moveResponse = await fetch("http://localhost:3000/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: taskToMove }),
+        });
+
+        if (!moveResponse.ok) throw new Error("Failed to move task to projects");
+        await handleDeleteTask(id);
+      } catch (error) {
+        console.error("Error moving task to projects:", error);
+        return;
+      }
+    } else {
+      // For other status updates
+      setTasks(tasks.map(task =>
+        task._id === id ? { ...task, status: newStatus, prevStatus: previousStatus } : task
+      ));
+
+      try {
+        await fetch(`http://localhost:3000/api/tasks/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus, prevStatus: previousStatus }),
+        });
+      } catch (error) {
+        console.error("Error updating task status:", error);
+      }
     }
   };
 
@@ -146,15 +170,11 @@ export default function Tasks() {
     }
   };
 
+
   // Filter tasks by name, assigned users, and user ID
   const filteredTasks = tasks.filter(task => {
-    // Check if task.userIds is defined and is an array
     const isAssignedToUser = !filterByUser || (task.userIds && Array.isArray(task.userIds) && task.userIds.includes(user?._id));
-
-    // Check if the task title matches the search query
     const matchesSearchQuery = task.title.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Check if any assigned user's name matches the search query
     const matchesAssignedUser = task.userIds && Array.isArray(task.userIds) && task.userIds.some(userId => {
       const assignedUser = users.find(user => user._id === userId);
       return assignedUser?.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -168,7 +188,6 @@ export default function Tasks() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Task Management</h1>
 
-        {/* Search Input and Filter Toggle */}
         {user && (
           <div className="mb-6 flex justify-end gap-4">
             <input
@@ -211,7 +230,6 @@ export default function Tasks() {
               onChange={e => setNewTask({ ...newTask, description: e.target.value })}
             />
 
-            {/* Due Date Input */}
             <input
               type="date"
               className="border p-2 rounded w-full mb-2 focus:ring-2 focus:ring-blue-500"
@@ -219,7 +237,6 @@ export default function Tasks() {
               onChange={e => setNewTask({ ...newTask, dueDate: e.target.value })}
             />
 
-            {/* Checkboxes for users */}
             <div className="mb-4 mt-4">
               <label className="block text-sm text-gray-700 mb-4">Assign Users:</label>
 
@@ -312,6 +329,15 @@ export default function Tasks() {
                           Undo
                         </button>
                       )}
+                      {
+                        task.status === "done" &&
+                        <button
+                          onClick={() => handleUpdateStatus(task._id, task.status)}
+                          className="bg-green-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-green-600 transition duration-200"
+                        >
+                          Done
+                        </button>
+                      }
                       <button
                         onClick={() => handleDeleteTask(task._id)}
                         className="bg-red-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-red-600 transition duration-200"
