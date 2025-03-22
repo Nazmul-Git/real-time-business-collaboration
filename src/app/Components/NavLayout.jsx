@@ -8,11 +8,12 @@ const NavLayout = () => {
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        localStorage.removeItem('role');
         router.push("/login");
     };
 
     return (
-        <div className="w-64 bg-gray-800 text-white p-6 flex flex-col">
+        <div className="fixed top-0 left-0 w-64 bg-gray-800 text-white p-6 flex flex-col h-screen">
             <div className="text-center mb-8 py-6">
                 <h2 className="text-2xl font-semibold text-orange-500">Business Collab 🚀</h2>
             </div>

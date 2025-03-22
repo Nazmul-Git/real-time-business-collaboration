@@ -9,6 +9,11 @@ export async function POST(req) {
 
     await dbConnect(); 
     const user = await User.findOne({ email });
+    if(user.otpCode === otp){
+      user.twoFactorEnabled= true;
+    }else{
+      return new Response(JSON.stringify({ message: "Invalid OTP" }), { status: 400 });
+    }
 
     if (!user) {
       return new Response(JSON.stringify({ message: "User not found" }), { status: 400 });
@@ -23,15 +28,10 @@ export async function POST(req) {
       return new Response(JSON.stringify({ message: "OTP expired" }), { status: 400 });
     }
 
-    // Verify OTP Code
-    if (user.otpCode !== otp) {
-      return new Response(JSON.stringify({ message: "Invalid OTP" }), { status: 400 });
-    }
-
     // Generate JWT After OTP is Verified
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    // Clear OTP Fields After Successful Verification (Security Best Practice)
+    // Clear OTP 
     user.otpCode = null;
     user.otpExpires = null;
     await user.save();

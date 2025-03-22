@@ -47,7 +47,6 @@ export async function POST(req) {
       // Store OTP and expiration time in the database
       user.otpCode = otpCode.toString();
       user.otpExpires = otpExpires;
-      user.twoFactorEnabled= true;
       await user.save();
       await sendOtpEmail(user.email, otpCode);
 
@@ -56,8 +55,10 @@ export async function POST(req) {
 
     // Generate JWT Only If 2FA is Not Required
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const role = user.role;
+    // console.log(role)
 
-    return Response.json({ message: "Login successful", token }, { status: 200 });
+    return Response.json({ message: "Login successful", token, role }, { status: 200 });
   } catch (error) {
     console.error("Error during login:", error);
     return Response.json({ message: "Something went wrong" }, { status: 500 });

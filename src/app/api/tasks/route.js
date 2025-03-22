@@ -1,6 +1,7 @@
 import dbConnect from "@/app/lib/dbConnect";
 import Task from "@/app/models/Task";
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 
 // GET: Fetch all tasks
 export async function GET() {
@@ -17,11 +18,30 @@ export async function GET() {
 export async function POST(req) {
   await dbConnect();
   try {
-    const { title, description, status, project } = await req.json();
-    const newTask = new Task({ title, description, status: status || "todo", project, currentStatus: status || "todo" });
+    const { title, description, status, project, userIds } = await req.json();
+
+    // Ensure userIds is an array before mapping
+    const objectIdUserIds = Array.isArray(userIds)
+      ? userIds.map(id => new mongoose.Types.ObjectId(id))
+      : [];
+
+    console.log("userIds:", userIds);
+    console.log("Converted ObjectIds:", objectIdUserIds);
+
+    const newTask = new Task({
+      title,
+      description,
+      status: status || "todo",
+      project,
+      currentStatus: status || "todo",
+      userIds: objectIdUserIds,
+    });
+
     await newTask.save();
     return NextResponse.json(newTask, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ message: "Failed to create task", error }, { status: 500 });
+    console.error("Error creating task:", error);
+    return NextResponse.json({ message: "Failed to create task", error: error.message }, { status: 500 });
   }
 }
+
