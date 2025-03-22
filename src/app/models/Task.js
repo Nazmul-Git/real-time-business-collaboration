@@ -6,9 +6,10 @@ const TaskSchema = new mongoose.Schema(
     description: { type: String },
     project: { type: String, required: true },
     status: { type: String, enum: ["todo", "in-progress", "done"], default: "todo" },
-    prevStatus: { type: String, default: null }, 
+    prevStatus: { type: String, default: null },
     currentStatus: { type: String, enum: ["todo", "in-progress", "done"], default: "todo" },
-    userIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "users" }], 
+    userIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "users" }],
+    dueDate: { type: Date },
   },
   { timestamps: true }
 );

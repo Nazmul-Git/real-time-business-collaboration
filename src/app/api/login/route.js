@@ -17,7 +17,7 @@ async function sendOtpEmail(userEmail, otpCode) {
     from: process.env.EMAIL_USER,
     to: userEmail,
     subject: "Your OTP Code for Login",
-    text: `Your OTP code is: ${otpCode}. This code is valid for 10 minutes.`,
+    text: `Your OTP code is: ${otpCode}. This code is valid for 1 minutes.`,
   };
 
   await transporter.sendMail(mailOptions);

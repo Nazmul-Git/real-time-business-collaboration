@@ -4,9 +4,18 @@ import { useState, useEffect } from "react";
 
 export default function Tasks() {
   const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState({ title: "", status: "todo", project: "", description: "", userIds: [] });
+  const [newTask, setNewTask] = useState({
+    title: "",
+    status: "todo",
+    project: "",
+    description: "",
+    userIds: [],
+    dueDate: "",
+  });
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterByUser, setFilterByUser] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -14,15 +23,26 @@ export default function Tasks() {
     if (storedUser || userRole) {
       setUser(JSON.parse(storedUser || userRole));
     }
+
+    const storedTasks = localStorage.getItem('tasks');
+    if (storedTasks) {
+      setTasks(JSON.parse(storedTasks));
+    }
+
     fetchTasks();
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
   const fetchTasks = async () => {
     try {
       const res = await fetch("http://localhost:3000/api/tasks");
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
+      console.log('fetch task = ', data);
       setTasks(data);
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -41,21 +61,31 @@ export default function Tasks() {
   };
 
   const handleAddTask = async () => {
-    if (!newTask.title || !newTask.project || newTask.userIds.length === 0) {
-      alert("Please fill in all fields and assign at least one user.");
+    if (!newTask.title || !newTask.project || newTask.userIds.length === 0 || !newTask.dueDate) {
+      alert("Please fill in all fields, assign at least one user, and select a due date.");
       return;
     }
-    console.log("New Task Data:", newTask);
     try {
       const res = await fetch("http://localhost:3000/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({
+          ...newTask,
+          dueDate: newTask.dueDate,
+        }),
       });
       if (!res.ok) throw new Error("Failed to add task");
       const task = await res.json();
+      console.log('post task = ', task);
       setTasks([...tasks, task]);
-      setNewTask({ title: "", status: "todo", project: "", description: "", userIds: [] });
+      setNewTask({
+        title: "",
+        status: "todo",
+        project: "",
+        description: "",
+        userIds: [],
+        dueDate: "",
+      });
     } catch (error) {
       console.error("Error adding task:", error);
     }
@@ -67,6 +97,14 @@ export default function Tasks() {
       ? [...newTask.userIds, value]
       : newTask.userIds.filter(id => id !== value);
     setNewTask({ ...newTask, userIds: updatedUserIds });
+  };
+
+  const handleSelectAllUsers = () => {
+    if (users.length === newTask.userIds.length) {
+      setNewTask({ ...newTask, userIds: [] });
+    } else {
+      setNewTask({ ...newTask, userIds: users.map(user => user._id) });
+    }
   };
 
   const handleUpdateStatus = async (id, newStatus, previousStatus) => {
@@ -100,18 +138,54 @@ export default function Tasks() {
       if (user.role === 'admin') {
         await fetch(`http://localhost:3000/api/tasks/${id}`, { method: "DELETE" });
         setTasks(tasks.filter(task => task._id !== id));
-      }else{
-        alert('Only admin can delete this task!')
+      } else {
+        alert('Only admin can delete this task!');
       }
     } catch (error) {
       console.error("Error deleting task:", error);
     }
   };
 
+  // Filter tasks by name, assigned users, and user ID
+  const filteredTasks = tasks.filter(task => {
+    // Check if task.userIds is defined and is an array
+    const isAssignedToUser = !filterByUser || (task.userIds && Array.isArray(task.userIds) && task.userIds.includes(user?._id));
+
+    // Check if the task title matches the search query
+    const matchesSearchQuery = task.title.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Check if any assigned user's name matches the search query
+    const matchesAssignedUser = task.userIds && Array.isArray(task.userIds) && task.userIds.some(userId => {
+      const assignedUser = users.find(user => user._id === userId);
+      return assignedUser?.name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+    return isAssignedToUser && (matchesSearchQuery || matchesAssignedUser);
+  });
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Task Management</h1>
+
+        {/* Search Input and Filter Toggle */}
+        {user && (
+          <div className="mb-6 flex justify-end gap-4">
+            <input
+              type="text"
+              placeholder="Search tasks by name or assigned user..."
+              className="border p-2 rounded w-64 focus:ring-2 focus:ring-blue-500"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            <button
+              onClick={() => setFilterByUser(!filterByUser)}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200"
+            >
+              {filterByUser ? "Show All Tasks" : "Search"}
+            </button>
+          </div>
+        )}
 
         {user && user.role === 'admin' && (
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
@@ -137,9 +211,28 @@ export default function Tasks() {
               onChange={e => setNewTask({ ...newTask, description: e.target.value })}
             />
 
+            {/* Due Date Input */}
+            <input
+              type="date"
+              className="border p-2 rounded w-full mb-2 focus:ring-2 focus:ring-blue-500"
+              value={newTask.dueDate}
+              onChange={e => setNewTask({ ...newTask, dueDate: e.target.value })}
+            />
+
             {/* Checkboxes for users */}
-            <div className="mb-4">
-              <label className="block text-sm text-gray-700 mb-2">Assign Users:</label>
+            <div className="mb-4 mt-4">
+              <label className="block text-sm text-gray-700 mb-4">Assign Users:</label>
+
+              <div className="flex justify-end">
+                <input
+                  type="checkbox"
+                  id="select-all"
+                  checked={newTask.userIds.length === users.length}
+                  onChange={handleSelectAllUsers}
+                />
+                <label htmlFor="select-all" className="ml-2 text-sm text-gray-800">Select All Users</label>
+              </div>
+
               <div className="space-y-2">
                 {users
                   .filter(user => user.role !== 'admin')
@@ -161,7 +254,7 @@ export default function Tasks() {
 
             <button
               onClick={handleAddTask}
-              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition duration-200"
+              className="bg-blue-500 text-white px-6 py-2 rounded cursor-pointer hover:bg-blue-600 transition duration-200"
             >
               Add Task
             </button>
@@ -173,24 +266,32 @@ export default function Tasks() {
           {["todo", "in-progress", "done"].map(status => (
             <div key={status} className="bg-white p-6 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">{status.toUpperCase()}</h2>
-              {tasks
+              {filteredTasks
                 .filter(task => task.status === status)
                 .map(task => (
                   <div key={task._id} className="bg-gray-50 p-4 rounded-lg mb-2 shadow-sm">
                     <p className="text-gray-800 font-medium">{task.title}</p>
                     <p className="text-sm text-gray-500">Project: {task.project}</p>
                     <p className="text-xs text-gray-400">{task.description}</p>
+                    <p className="text-sm text-gray-500">
+                      Due Date: {new Date(task.dueDate).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric"
+                      })}
+                    </p>
 
-                    {/* Display assigned users */}
+                    {/* Display Assigned Users */}
                     <p className="text-sm text-gray-500">
                       Assigned to:{" "}
                       {(task.userIds && Array.isArray(task.userIds) && task.userIds.length > 0)
                         ? task.userIds
                           .map(userId => {
                             const assignedUser = users.find(user => user._id === userId);
-                            return assignedUser ? assignedUser.name : "Unknown";
+                            return assignedUser ? assignedUser.name : null;
                           })
-                          .join(", ")
+                          .filter(name => name !== null)
+                          .join(", ") || "No users assigned"
                         : "No users assigned"}
                     </p>
 
@@ -198,7 +299,7 @@ export default function Tasks() {
                       {task.status !== "done" && (
                         <button
                           onClick={() => handleUpdateStatus(task._id, task.status === "todo" ? "in-progress" : "done", task.status)}
-                          className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition duration-200"
+                          className="bg-green-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-green-600 transition duration-200"
                         >
                           Move to {task.status === "todo" ? "In-Progress" : "Done"}
                         </button>
@@ -206,14 +307,14 @@ export default function Tasks() {
                       {task.prevStatus && (
                         <button
                           onClick={() => handleUndoStatus(task._id, task.prevStatus)}
-                          className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition duration-200"
+                          className="bg-yellow-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-yellow-600 transition duration-200"
                         >
                           Undo
                         </button>
                       )}
                       <button
                         onClick={() => handleDeleteTask(task._id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition duration-200"
+                        className="bg-red-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-red-600 transition duration-200"
                       >
                         Delete
                       </button>

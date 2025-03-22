@@ -22,11 +22,11 @@ export async function PATCH(req, context) {
     await dbConnect();
     try {
         const params = await context.params; 
-        const { status, prevStatus } = await req.json();
+        const { status, prevStatus, dueDate } = await req.json();
 
         const updatedTask = await Task.findByIdAndUpdate(
             params.id,
-            { status, prevStatus },
+            { status, prevStatus, dueDate },
             { new: true }
         );
 
