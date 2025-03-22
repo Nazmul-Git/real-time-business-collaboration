@@ -108,39 +108,40 @@ export default function Tasks() {
   };
 
   const handleUpdateStatus = async (id, newStatus, previousStatus) => {
-    if (newStatus === "done") {
-      try {
-        // Find the task to be moved
-        const taskToMove = tasks.find(task => task._id === id);
+    setTasks(tasks.map(task =>
+      task._id === id ? { ...task, status: newStatus, prevStatus: previousStatus } : task
+    ));
 
-        // Call the API to move the task to the projects table
-        const moveResponse = await fetch("http://localhost:3000/api/projects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task: taskToMove }),
-        });
+    try {
+      await fetch(`http://localhost:3000/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, prevStatus: previousStatus }),
+      });
+    } catch (error) {
+      console.error("Error updating task status:", error);
+    }
+  };
 
-        if (!moveResponse.ok) throw new Error("Failed to move task to projects");
-        await handleDeleteTask(id);
-      } catch (error) {
-        console.error("Error moving task to projects:", error);
-        return;
-      }
-    } else {
-      // For other status updates
-      setTasks(tasks.map(task =>
-        task._id === id ? { ...task, status: newStatus, prevStatus: previousStatus } : task
-      ));
+  // moving a task to "Done"
+  const handleMoveToDone = async (id) => {
+    try {
+      const taskToMove = tasks.find(task => task._id === id);
 
-      try {
-        await fetch(`http://localhost:3000/api/tasks/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus, prevStatus: previousStatus }),
-        });
-      } catch (error) {
-        console.error("Error updating task status:", error);
-      }
+      // Call the API to move the task to the projects table
+      const moveResponse = await fetch("http://localhost:3000/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: taskToMove }),
+      });
+
+      if (!moveResponse.ok) throw new Error("Failed to move task to projects");
+
+      // Delete the task from the tasks table
+      await fetch(`http://localhost:3000/api/tasks/${id}`, { method: "DELETE" });
+      setTasks(tasks.filter(task => task._id !== id));
+    } catch (error) {
+      console.error("Error moving task to projects:", error);
     }
   };
 
@@ -329,15 +330,14 @@ export default function Tasks() {
                           Undo
                         </button>
                       )}
-                      {
-                        task.status === "done" &&
+                      {task.status === "done" && (
                         <button
-                          onClick={() => handleUpdateStatus(task._id, task.status)}
+                          onClick={() => handleMoveToDone(task._id)}
                           className="bg-green-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-green-600 transition duration-200"
                         >
                           Done
                         </button>
-                      }
+                      )}
                       <button
                         onClick={() => handleDeleteTask(task._id)}
                         className="bg-red-500 text-white px-3 py-1 cursor-pointer rounded text-sm hover:bg-red-600 transition duration-200"
