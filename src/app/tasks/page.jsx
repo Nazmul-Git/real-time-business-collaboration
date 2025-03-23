@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { FcSearch } from "react-icons/fc";
 
 export default function Tasks() {
   const [tasks, setTasks] = useState([]);
@@ -19,9 +20,9 @@ export default function Tasks() {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    const userRole = localStorage.getItem('role');
-    if (storedUser || userRole) {
-      setUser(JSON.parse(storedUser || userRole));
+    const loggedUser = localStorage.getItem('loggedUser');
+    if (storedUser || loggedUser) {
+      setUser(JSON.parse(storedUser || loggedUser));
     }
 
     const storedTasks = localStorage.getItem('tasks');
@@ -190,20 +191,17 @@ export default function Tasks() {
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Task Management</h1>
 
         {user && (
-          <div className="mb-6 flex justify-end gap-4">
-            <input
-              type="text"
-              placeholder="Search tasks by name or assigned user..."
-              className="border p-2 rounded w-64 focus:ring-2 focus:ring-blue-500"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            <button
-              onClick={() => setFilterByUser(!filterByUser)}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200"
-            >
-              {filterByUser ? "Show All Tasks" : "Search"}
-            </button>
+          <div className="mb-6 flex flex-col md:flex-row justify-end">
+            <div className="relative w-full md:w-64">
+              <input
+                type="text"
+                placeholder="Search by title or name..."
+                className="border p-2 pl-4 pr-2 rounded-4xl w-full focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              <FcSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xl text-gray-500" />
+            </div>
           </div>
         )}
 

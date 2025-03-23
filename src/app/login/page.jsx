@@ -23,16 +23,14 @@ export default function Login() {
       });
   
       const data = await res.json();
-      console.log(data);
-      const role = data?.role;
-      const userRole = {role};
+      data.email=email;
   
       if (res.status === 200) {
         if (data.twoFactorEnabled) {
           setShowOtpField(true);
         } else {
           localStorage.setItem("token", data.token);
-          localStorage.setItem("role", JSON.stringify(userRole));
+          localStorage.setItem("loggedUser", JSON.stringify(data));
           router.push("/dashboard");
         }
       } else {
