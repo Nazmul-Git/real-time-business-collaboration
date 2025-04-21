@@ -1,0 +1,3 @@
+{"level":"info","message":"MongoDB connected successfully","timestamp":"2025-04-21T05:35:12.793Z"}
+{"level":"info","message":"Server running on port 3001","timestamp":"2025-04-21T05:35:13.681Z"}
+{"level":"info","message":"Socket.IO endpoint: ws://localhost:3001/socket.io","timestamp":"2025-04-21T05:35:13.681Z"}

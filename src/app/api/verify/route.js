@@ -7,33 +7,36 @@ export async function POST(req) {
     const { email, otp } = await req.json();
     console.log("Received OTP Verification Request:", { email, otp });
 
-    await dbConnect(); 
+    await dbConnect();
     const user = await User.findOne({ email });
-    if(user.otpCode === otp){
-      user.twoFactorEnabled= true;
-    }else{
-      return new Response(JSON.stringify({ message: "Invalid OTP" }), { status: 400 });
-    }
 
     if (!user) {
       return new Response(JSON.stringify({ message: "User not found" }), { status: 400 });
     }
 
-    if (!user.twoFactorEnabled) {
-      return new Response(JSON.stringify({ message: "2FA is not enabled" }), { status: 400 });
-    }
-
-    // Check If OTP Exists and Is Not Expired
     if (!user.otpCode || Date.now() > new Date(user.otpExpires).getTime()) {
-      return new Response(JSON.stringify({ message: "OTP expired" }), { status: 400 });
+      return new Response(JSON.stringify({ message: "OTP expired or not found" }), { status: 400 });
     }
 
-    // Generate JWT After OTP is Verified
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    if (user.otpCode !== otp) {
+      return new Response(JSON.stringify({ message: "Invalid OTP" }), { status: 400 });
+    }
 
-    // Clear OTP 
+    // ✅ OTP is valid — set twoFactorEnabled and issue JWT
+    user.twoFactorEnabled = true;
+
+    // 🔐 Generate JWT
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "3d",
+    });
+
+    // 💾 Save token expiration in DB (to reset 2FA later)
+    user.tokenExpires = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); 
+
+    // 🧹 Clear OTP
     user.otpCode = null;
     user.otpExpires = null;
+
     await user.save();
 
     console.log("OTP Verified Successfully for:", email);

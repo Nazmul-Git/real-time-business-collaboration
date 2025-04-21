@@ -26,6 +26,7 @@ export default function Login() {
       data.email=email;
   
       if (res.status === 200) {
+        console.log(data)
         if (data.twoFactorEnabled) {
           setShowOtpField(true);
         } else {
