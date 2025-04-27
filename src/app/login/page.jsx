@@ -60,6 +60,7 @@ export default function Login() {
   
       if (res.status === 200) {
         localStorage.setItem("token", data.token);
+        localStorage.setItem("loggedUser", JSON.stringify(data));
         router.push("/dashboard"); 
       } else {
         setError(data.message);

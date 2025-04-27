@@ -12,7 +12,6 @@ const Messenger = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [socket, setSocket] = useState(null);
   const [conversations, setConversations] = useState({});
   const [unreadCounts, setUnreadCounts] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,7 +19,7 @@ const Messenger = () => {
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
 
-  // Initialize WebSocket connection and restore state
+  // Initialize WebSocket connection
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedUser');
     if (!storedUser) return;
@@ -29,186 +28,105 @@ const Messenger = () => {
     setLoggedUser(user);
 
     const initializeSocket = () => {
-      // 1. Verify the WebSocket URL is correct
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER;
-      if (!socketUrl) {
-        console.error('Socket server URL is not defined');
-        setError('Server configuration error');
-        return;
-      }
-
-      // 2. Enhanced socket options with debugging
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER || 'http://localhost:8080';
+      
       const socketOptions = {
-        path: '/socket.io',
+        path: '/api/chat/socket.io',
         query: { userId: user.email },
         reconnection: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        randomizationFactor: 0.5,
-        transports: ['websocket', 'polling'], // Fallback to polling if WS fails
-        autoConnect: true,
+        transports: ['websocket'],
         withCredentials: true,
-        secure: process.env.NODE_ENV === 'production',
-        // Enable debugging
-        debug: process.env.NODE_ENV !== 'production',
+        secure: process.env.NODE_ENV === 'production'
       };
 
       console.log('Connecting to WebSocket at:', socketUrl);
 
-      const newSocket = io(socketUrl, socketOptions);
-      socketRef.current = newSocket;
+      const socket = io(socketUrl, socketOptions);
+      socketRef.current = socket;
 
-      // 3. Enhanced error handling
-      const onConnect = () => {
-        console.log('WebSocket connected successfully');
+      // Connection handlers
+      socket.on('connect', () => {
+        console.log('Connected to WebSocket');
         setIsConnected(true);
         setError(null);
-        newSocket.emit('register', user.email);
-      };
+        socket.emit('register', user.email);
+      });
 
-      const onConnectError = (err) => {
-        console.error('WebSocket connection error:', err);
+      socket.on('connect_error', (err) => {
+        console.error('Connection error:', err);
         setIsConnected(false);
+        setError(err.message.includes('ECONNREFUSED') 
+          ? 'Server unavailable. Retrying...' 
+          : `Connection error: ${err.message}`);
+      });
 
-        // Specific error messages for common cases
-        if (err.message.includes('ECONNREFUSED')) {
-          setError('Server is not available. Please try again later.');
-        } else if (err.message.includes('websocket error')) {
-          setError('Network issue detected. Trying to reconnect...');
-        } else {
-          setError(`Connection error: ${err.message}`);
-        }
-      };
-
-      const onDisconnect = (reason) => {
+      socket.on('disconnect', (reason) => {
         console.log('Disconnected:', reason);
         setIsConnected(false);
+        setError('Disconnected. Reconnecting...');
+      });
 
-        if (reason === 'transport close') {
-          setError('Connection lost. Reconnecting...');
-        } else if (reason === 'io server disconnect') {
-          setError('Server disconnected. Will try to reconnect...');
-          setTimeout(() => newSocket.connect(), 5000);
+      // Message handlers
+      socket.on('message', (message) => {
+        const otherUser = message.sender === user.email ? message.receiver : message.sender;
+        
+        setConversations(prev => ({
+          ...prev,
+          [otherUser]: [...(prev[otherUser] || []), message]
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        }));
+
+        if (selectedUser?.email === otherUser) {
+          setMessages(prev => [...prev, message]);
+          scrollToBottom();
+          
+          if (message.sender !== user.email) {
+            socket.emit('mark-as-read', {
+              messageIds: [message.id],
+              sender: message.sender,
+              receiver: user.email
+            });
+          }
+        } else if (message.sender !== user.email) {
+          setUnreadCounts(prev => ({
+            ...prev,
+            [otherUser]: (prev[otherUser] || 0) + 1
+          }));
         }
-      };
+      });
 
-      // 4. Message handlers
-      const onMessage = (message) => {
-        setMessages(prev => [...prev, message]);
-        scrollToBottom();
-      };
+      socket.on('message-status', (data) => {
+        setConversations(prev => {
+          const updated = { ...prev };
+          for (const email in updated) {
+            updated[email] = updated[email].map(msg => 
+              data.messageIds.includes(msg.id) ? { ...msg, status: data.status } : msg
+            );
+          }
+          return updated;
+        });
 
-      // 5. Set up all event listeners
-      newSocket.on('connect', onConnect);
-      newSocket.on('connect_error', onConnectError);
-      newSocket.on('disconnect', onDisconnect);
-      newSocket.on('message', onMessage);
+        if (selectedUser) {
+          setMessages(prev =>
+            prev.map(msg =>
+              data.messageIds.includes(msg.id) ? { ...msg, status: data.status } : msg
+            )
+          );
+        }
+      });
 
       return () => {
-        // Clean up all listeners
-        newSocket.off('connect', onConnect);
-        newSocket.off('connect_error', onConnectError);
-        newSocket.off('disconnect', onDisconnect);
-        newSocket.off('message', onMessage);
-
-        if (newSocket.connected) {
-          newSocket.disconnect();
-        }
+        socket.disconnect();
       };
     };
 
     initializeSocket();
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      if (socketRef.current) socketRef.current.disconnect();
     };
-  }, []); // Empty dependency array to run only once
-
-  // Handle incoming messages
-  useEffect(() => {
-    if (!socket || !loggedUser) return;
-
-    const handleIncomingMessage = (message) => {
-      const isIncoming = message.sender !== loggedUser.email;
-      const otherUserEmail = isIncoming ? message.sender : message.receiver;
-
-      setConversations(prev => {
-        const updatedConversations = {
-          ...prev,
-          [otherUserEmail]: [...(prev[otherUserEmail] || []), message]
-            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-        };
-        localStorage.setItem('conversations', JSON.stringify(updatedConversations));
-        return updatedConversations;
-      });
-
-      if (selectedUser?.email === otherUserEmail) {
-        setMessages(prev => [...prev, message]);
-        scrollToBottom();
-
-        if (isIncoming) {
-          socket.emit('message-read', {
-            messageId: message.id,
-            sender: message.sender,
-            receiver: message.receiver
-          });
-        }
-      }
-
-      if (isIncoming && selectedUser?.email !== otherUserEmail) {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [otherUserEmail]: (prev[otherUserEmail] || 0) + 1
-        }));
-      }
-    };
-
-    const handleMessageStatusUpdate = (data) => {
-      setConversations(prev => {
-        const updatedConversations = { ...prev };
-        for (const email in updatedConversations) {
-          updatedConversations[email] = updatedConversations[email].map(msg => {
-            if (msg.id === data.messageId) {
-              return { ...msg, status: data.status };
-            }
-            return msg;
-          });
-        }
-        localStorage.setItem('conversations', JSON.stringify(updatedConversations));
-        return updatedConversations;
-      });
-
-      if (selectedUser) {
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === data.messageId ? { ...msg, status: data.status } : msg
-          )
-        );
-      }
-    };
-
-    socket.on('message', handleIncomingMessage);
-    socket.on('message-status', handleMessageStatusUpdate);
-
-    return () => {
-      socket.off('message', handleIncomingMessage);
-      socket.off('message-status', handleMessageStatusUpdate);
-    };
-  }, [socket, selectedUser, loggedUser]);
-
-  // Check screen size
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-
-    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
   // Fetch users
@@ -221,14 +139,13 @@ const Messenger = () => {
 
         const storedUser = localStorage.getItem('loggedUser');
         if (storedUser) {
-          const loggedUserData = JSON.parse(storedUser);
-          const filteredUsers = data.filter((user) => user.email !== loggedUserData.email);
-          setUsers(filteredUsers);
+          const userData = JSON.parse(storedUser);
+          setUsers(data.filter(user => user.email !== userData.email));
         } else {
           setUsers(data);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -237,24 +154,34 @@ const Messenger = () => {
     fetchUsers();
   }, []);
 
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => setIsMobile(window.innerWidth < 768);
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  // Scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const getLastMessage = useCallback((userEmail) => {
-    const conversation = conversations[userEmail] || [];
-    if (conversation.length === 0) {
-      return { text: 'No messages yet', time: '' };
-    }
+  // Get last message for a user
+  const getLastMessage = useCallback((email) => {
+    const conversation = conversations[email] || [];
+    if (!conversation.length) return { text: 'No messages yet', time: '' };
+    
     const lastMsg = conversation[conversation.length - 1];
     return {
-      text: lastMsg.content.length > 30
-        ? `${lastMsg.content.substring(0, 30)}...`
+      text: lastMsg.content.length > 30 
+        ? `${lastMsg.content.substring(0, 30)}...` 
         : lastMsg.content,
       time: new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
   }, [conversations]);
 
+  // Select a user to chat with
   const handleUserSelect = useCallback((user) => {
     setSelectedUser(user);
     localStorage.setItem('selectedUser', JSON.stringify(user));
@@ -264,25 +191,26 @@ const Messenger = () => {
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     setMessages(userMessages);
 
-    if (socket && loggedUser) {
-      const unreadMessages = userMessages.filter(
-        msg => msg.sender === user.email && msg.status !== 'read'
-      );
+    if (socketRef.current?.connected && loggedUser) {
+      const unreadMessages = userMessages
+        .filter(msg => msg.sender === user.email && msg.status !== 'read')
+        .map(msg => msg.id);
 
-      if (unreadMessages.length > 0) {
-        socket.emit('mark-as-read', {
+      if (unreadMessages.length) {
+        socketRef.current.emit('mark-as-read', {
+          messageIds: unreadMessages,
           sender: user.email,
-          receiver: loggedUser.email,
-          messageIds: unreadMessages.map(msg => msg.id)
+          receiver: loggedUser.email
         });
       }
     }
 
     setTimeout(scrollToBottom, 100);
-  }, [conversations, scrollToBottom, socket, loggedUser]);
+  }, [conversations, loggedUser, scrollToBottom]);
 
+  // Send a new message
   const handleSendMessage = useCallback(() => {
-    if (!newMessage.trim() || !selectedUser || !socket || !loggedUser) return;
+    if (!newMessage.trim() || !selectedUser || !socketRef.current?.connected || !loggedUser) return;
 
     const message = {
       id: Date.now().toString(),
@@ -295,41 +223,29 @@ const Messenger = () => {
 
     // Optimistic update
     setMessages(prev => [...prev, message]);
-    setConversations(prev => {
-      const updated = {
-        ...prev,
-        [selectedUser.email]: [...(prev[selectedUser.email] || []), message]
-      };
-      localStorage.setItem('conversations', JSON.stringify(updated));
-      return updated;
-    });
-
+    setConversations(prev => ({
+      ...prev,
+      [selectedUser.email]: [...(prev[selectedUser.email] || []), message]
+    }));
     setNewMessage('');
     scrollToBottom();
 
-    // Send message via socket
-    if (isConnected) {
-      socket.emit('message', message);
-    } else {
-      // If not connected, store message to send when connection is restored
-      const pendingMessages = JSON.parse(localStorage.getItem('pendingMessages') || '[]');
-      pendingMessages.push(message);
-      localStorage.setItem('pendingMessages', JSON.stringify(pendingMessages));
-      setError('Message will be sent when connection is restored');
-    }
+    // Send via WebSocket
+    socketRef.current.emit('message', message);
 
-    // Simulate message delivery
+    // Simulate delivery status
     setTimeout(() => {
-      if (socket && isConnected) {
-        socket.emit('message-delivered', {
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('message-delivered', {
           messageId: message.id,
           sender: message.sender,
           receiver: message.receiver
         });
       }
     }, 1000);
-  }, [newMessage, selectedUser, socket, loggedUser, scrollToBottom, isConnected]);
+  }, [newMessage, selectedUser, loggedUser, scrollToBottom]);
 
+  // Handle Enter key press
   const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -337,16 +253,16 @@ const Messenger = () => {
     }
   }, [handleSendMessage]);
 
+  // Filter users based on search term
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Get sender name for message
   const getSenderName = (message) => {
-    if (message.sender === loggedUser?.email) {
-      return "You";
-    }
-    return users.find(user => user.email === message.sender)?.name || "Unknown";
+    if (message.sender === loggedUser?.email) return "You";
+    return users.find(u => u.email === message.sender)?.name || "Unknown";
   };
 
   if (loading) return <div className="flex justify-center items-center h-screen text-gray-600">Loading...</div>;
@@ -355,9 +271,12 @@ const Messenger = () => {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 md:p-6 flex justify-center">
       {/* Connection status indicator */}
-      <div className={`fixed top-4 right-4 px-3 py-1 rounded-full text-sm flex items-center ${isConnected ? 'bg-green-500 text-white' : 'bg-yellow-500 text-black'
-        }`}>
-        <span className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-white' : 'bg-black'}`}></span>
+      <div className={`fixed top-4 right-4 px-3 py-1 rounded-full text-sm flex items-center ${
+        isConnected ? 'bg-green-500 text-white' : 'bg-yellow-500 text-black'
+      }`}>
+        <span className={`w-2 h-2 rounded-full mr-2 ${
+          isConnected ? 'bg-white' : 'bg-black'
+        }`}></span>
         {isConnected ? 'Connected' : 'Disconnected'}
       </div>
 
@@ -366,10 +285,7 @@ const Messenger = () => {
         <div className="fixed bottom-4 right-4 bg-yellow-500 text-black px-4 py-2 rounded-md shadow-lg flex items-center z-50">
           <span>{error}</span>
           <button
-            onClick={() => {
-              setError(null);
-              if (socketRef.current) socketRef.current.connect();
-            }}
+            onClick={() => socketRef.current?.connect()}
             className="ml-2 bg-white px-2 py-1 rounded text-sm"
           >
             Retry
@@ -410,10 +326,11 @@ const Messenger = () => {
                 {filteredUsers.map((user) => (
                   <li
                     key={user._id}
-                    className={`p-3 rounded-lg transition-all cursor-pointer relative ${selectedUser?.email === user.email
-                      ? 'bg-blue-50 dark:bg-blue-900/30'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                      }`}
+                    className={`p-3 rounded-lg transition-all cursor-pointer relative ${
+                      selectedUser?.email === user.email
+                        ? 'bg-blue-50 dark:bg-blue-900/30'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
                     onClick={() => handleUserSelect(user)}
                   >
                     {unreadCounts[user.email] > 0 && (
@@ -483,7 +400,9 @@ const Messenger = () => {
                 messages.map((message) => (
                   <div
                     key={message.id || message.timestamp}
-                    className={`mb-4 flex ${message.sender === loggedUser.email ? 'justify-end' : 'justify-start'}`}
+                    className={`mb-4 flex ${
+                      message.sender === loggedUser.email ? 'justify-end' : 'justify-start'
+                    }`}
                   >
                     <div className="flex flex-col max-w-xs md:max-w-md">
                       {message.sender !== loggedUser.email && (
@@ -492,19 +411,29 @@ const Messenger = () => {
                         </span>
                       )}
                       <div
-                        className={`rounded-lg px-4 py-2 ${message.sender === loggedUser.email
-                          ? 'bg-blue-500 text-white rounded-br-none'
-                          : 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white rounded-bl-none'
-                          }`}
+                        className={`rounded-lg px-4 py-2 ${
+                          message.sender === loggedUser.email
+                            ? 'bg-blue-500 text-white rounded-br-none'
+                            : 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white rounded-bl-none'
+                        }`}
                       >
                         <p className="whitespace-pre-wrap">{message.content}</p>
                         <div className="flex justify-end items-center mt-1 space-x-1">
-                          <span className={`text-xs ${message.sender === loggedUser.email ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <span className={`text-xs ${
+                            message.sender === loggedUser.email 
+                              ? 'text-blue-100' 
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}>
                             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                           {message.sender === loggedUser.email && (
-                            <span className={`text-xs ${message.status === 'read' ? 'text-blue-300' : 'text-blue-100'}`}>
-                              {message.status === 'delivered' ? '✓✓' : message.status === 'read' ? '✓✓✓' : '✓'}
+                            <span className={`text-xs ${
+                              message.status === 'read' 
+                                ? 'text-blue-300' 
+                                : 'text-blue-100'
+                            }`}>
+                              {message.status === 'delivered' ? '✓✓' : 
+                               message.status === 'read' ? '✓✓✓' : '✓'}
                             </span>
                           )}
                         </div>
