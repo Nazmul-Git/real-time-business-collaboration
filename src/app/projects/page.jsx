@@ -15,7 +15,7 @@ export default function ProjectsPage() {
   // Fetch projects from the API
   const fetchProjects = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/projects");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/projects`);
       if (!res.ok) throw new Error("Failed to fetch projects");
       const data = await res.json();
       setProjects(data.data);
@@ -71,8 +71,8 @@ export default function ProjectsPage() {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-100 p-6 flex justify-end">
+      <div className="max-w-full mx-auto">
         <div className="flex justify-between items-center mb-6 flex-wrap">
           <h1 className="text-3xl font-bold text-gray-800 mb-4 md:mb-0">Completed Projects</h1>
           {/* Search Bar */}

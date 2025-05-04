@@ -1,11 +1,13 @@
+import mongoose from 'mongoose';
+
 const messageSchema = new mongoose.Schema({
     sender: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
       required: true,
       trim: true
     },
     receiver: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
       required: true,
       trim: true
     },
@@ -32,5 +34,5 @@ const messageSchema = new mongoose.Schema({
   messageSchema.index({ timestamp: -1 });
   
   // Export model
-  const Message = mongoose.models.message || mongoose.model('message', messageSchema);
+  const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);
 export default Message;
