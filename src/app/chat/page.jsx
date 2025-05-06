@@ -1,11 +1,12 @@
 'use client';
 import React from 'react';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { FiSearch, FiEdit2, FiSend, FiMoreVertical, FiChevronDown, FiCheck, FiCheckCircle } from 'react-icons/fi';
-import { BsThreeDotsVertical, BsCheck2All } from 'react-icons/bs';
-import { IoMdNotifications } from 'react-icons/io';
 import io from 'socket.io-client';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
+import ContactsList from '../Components/Chat/ContactsList';
+import ChatArea from '../Components/Chat/ChatArea';
+import EmptyState from '../Components/Chat/EmptyState';
+import Cookies from 'js-cookie';
 
 const Messenger = () => {
   // State
@@ -31,6 +32,34 @@ const Messenger = () => {
   const typingTimeoutRef = useRef(null);
   const notificationSoundRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Format message time
+  const formatMessageTime = (timestamp) => {
+    try {
+      return format(new Date(timestamp), 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '';
+    }
+  };
+
+  // Format last seen time
+  const formatLastSeen = (timestamp) => {
+    if (!timestamp) return 'Last seen a long time ago';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isToday(date)) {
+        return `Last seen today at ${format(date, 'h:mm a')}`;
+      } else if (isYesterday(date)) {
+        return `Last seen yesterday at ${format(date, 'h:mm a')}`;
+      }
+      return `Last seen ${formatDistanceToNow(date)} ago`;
+    } catch (error) {
+      console.error('Error formatting last seen time:', error);
+      return 'Last seen recently';
+    }
+  };
 
   // Initialize Socket.IO connection
   useEffect(() => {
@@ -91,6 +120,12 @@ const Messenger = () => {
           const filteredUsers = data.filter(user => user._id !== fullUser._id);
           setUsers(filteredUsers);
           setOriginalUsers(filteredUsers);
+          
+          // Load conversations from localStorage if available
+          const savedConversations = Cookies.get('conversations');
+          if (savedConversations) {
+            setConversations(JSON.parse(savedConversations));
+          }
         } else {
           setUsers(data);
           setOriginalUsers(data);
@@ -104,6 +139,13 @@ const Messenger = () => {
 
     fetchUsers();
   }, []);
+
+  // Save conversations to localStorage whenever they change
+  useEffect(() => {
+    if (Object.keys(conversations).length > 0) {
+      Cookies.set('conversations', JSON.stringify(conversations));
+    }
+  }, [conversations]);
 
   // Reset to original order when search is cleared and no unread messages
   useEffect(() => {
@@ -123,16 +165,16 @@ const Messenger = () => {
       try {
         const res = await fetch(`/api/chat?userId=${loggedUser._id}&contactId=${selectedUser._id}`);
         if (!res.ok) throw new Error('Failed to fetch messages');
-        
+
         const data = await res.json();
         if (data.success) {
           setMessages(data.data);
-          
+
           setConversations(prev => ({
             ...prev,
             [selectedUser._id]: data.data
           }));
-          
+
           scrollToBottom();
         }
       } catch (error) {
@@ -143,48 +185,44 @@ const Messenger = () => {
     fetchMessages();
   }, [selectedUser, loggedUser]);
 
-  // Handle incoming real-time messages
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    const handleMessage = (message) => {
-      // Play notification sound if message is not from current chat
-      if (selectedUser?._id !== message.sender) {
-        playNotificationSound();
-        showDesktopNotification(message);
-      }
-
-      // Update conversations
+  // Enhanced handleMessage function with database sync
+  const handleMessage = useCallback(async (message) => {
+    try {
+      // First, update UI optimistically
       setConversations(prev => {
         const existingMessages = prev[message.sender] || [];
-        const updatedMessages = [...existingMessages, message];
-        
-        return {
+        const updatedConversations = {
           ...prev,
-          [message.sender]: updatedMessages
+          [message.sender]: [...existingMessages, message]
         };
+        return updatedConversations;
       });
 
-      // Move sender to top of users list if not already selected
-      setUsers(prev => {
-        if (prev[0]?._id === message.sender) return prev;
-        
-        const senderIndex = prev.findIndex(u => u._id === message.sender);
-        if (senderIndex > 0) {
-          const updated = [...prev];
-          const [sender] = updated.splice(senderIndex, 1);
-          return [sender, ...updated];
-        }
-        return prev;
+      // Save to database
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
       });
 
-      // If this is the active chat, update messages and mark as read
+      if (!response.ok) throw new Error('Failed to save message');
+
+      const savedMessage = await response.json();
+
+      // Update with database ID if needed
+      setConversations(prev => ({
+        ...prev,
+        [message.sender]: prev[message.sender].map(msg => 
+          msg._id === message._id ? savedMessage.data : msg
+        )
+      }));
+
+      // Rest of the message handling logic
       if (selectedUser?._id === message.sender) {
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => [...prev, savedMessage.data]);
         scrollToBottom();
-        markAsRead([message._id], message.sender);
+        markAsRead([savedMessage.data._id], message.sender);
       } else {
-        // Update unread count for other chats
         setUnreadCounts(prev => ({
           ...prev,
           [message.sender]: (prev[message.sender] || 0) + 1
@@ -205,11 +243,23 @@ const Messenger = () => {
           ]);
         }
       }
-    };
+    } catch (error) {
+      console.error('Error handling message:', error);
+      // Rollback UI if database save failed
+      setConversations(prev => ({
+        ...prev,
+        [message.sender]: prev[message.sender].filter(msg => msg._id !== message._id)
+      }));
+    }
+  }, [selectedUser, users]);
+
+  // Handle incoming real-time messages
+  useEffect(() => {
+    if (!socketRef.current) return;
 
     const handleStatusUpdate = ({ messageId, messageIds, status }) => {
       const ids = messageIds || [messageId];
-      
+
       // Update messages in current chat
       setMessages(prev =>
         prev.map(msg =>
@@ -231,11 +281,11 @@ const Messenger = () => {
 
     const handleTyping = ({ sender }) => {
       setTypingStatus(prev => ({ ...prev, [sender]: true }));
-      
+
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      
+
       typingTimeoutRef.current = setTimeout(() => {
         setTypingStatus(prev => ({ ...prev, [sender]: false }));
       }, 2000);
@@ -253,7 +303,7 @@ const Messenger = () => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [selectedUser, users]);
+  }, [handleMessage]);
 
   // Play notification sound
   const playNotificationSound = () => {
@@ -297,14 +347,14 @@ const Messenger = () => {
         sender: senderId,
         receiver: loggedUser._id
       });
-      
+
       try {
         await fetch('/api/chat', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messageIds, status: 'read' })
         });
-        
+
         // Update unread counts
         setUnreadCounts(prev => ({
           ...prev,
@@ -312,8 +362,8 @@ const Messenger = () => {
         }));
 
         // Mark notifications as read
-        setNotifications(prev => 
-          prev.map(notif => 
+        setNotifications(prev =>
+          prev.map(notif =>
             messageIds.includes(notif.id) ? { ...notif, read: true } : notif
           )
         );
@@ -358,7 +408,7 @@ const Messenger = () => {
     }, 100);
   }, [conversations, markAsRead]);
 
-  // Send a new message
+  // Enhanced send message function with database sync
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedUser || !isConnected || !loggedUser) return;
 
@@ -377,7 +427,7 @@ const Messenger = () => {
         timestamp: new Date().toISOString(),
         status: 'sent'
       };
-      
+
       setMessages(prev => [...prev, tempMessage]);
       setConversations(prev => ({
         ...prev,
@@ -386,7 +436,7 @@ const Messenger = () => {
       setNewMessage('');
       scrollToBottom();
 
-      // Save to database
+      // Save to database first
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -394,10 +444,10 @@ const Messenger = () => {
       });
 
       if (!response.ok) throw new Error('Failed to save message');
-      
+
       const savedMessage = await response.json();
-      
-      // Replace temporary message with saved one
+
+      // Update UI with database-persisted message
       setMessages(prev => prev.map(msg => 
         msg._id === tempId ? { ...savedMessage.data, status: 'delivered' } : msg
       ));
@@ -409,10 +459,11 @@ const Messenger = () => {
         )
       }));
 
-      // Send via WebSocket
+      // Then send via WebSocket
       sendMessage({ ...savedMessage.data, status: 'delivered' });
     } catch (error) {
       console.error('Error sending message:', error);
+      // Rollback on error
       setMessages(prev => prev.filter(msg => msg._id !== tempId));
       setConversations(prev => ({
         ...prev,
@@ -443,25 +494,6 @@ const Messenger = () => {
     return users.find(u => u._id === message.sender)?.name || "Unknown";
   };
 
-  // Format message time
-  const formatMessageTime = (timestamp) => {
-    return format(new Date(timestamp), 'h:mm a');
-  };
-
-  // Format last seen time
-  const formatLastSeen = (timestamp) => {
-    if (!timestamp) return 'Last seen a long time ago';
-    
-    const date = new Date(timestamp);
-    if (isToday(date)) {
-      return `Last seen today at ${format(date, 'h:mm a')}`;
-    } else if (isYesterday(date)) {
-      return `Last seen yesterday at ${format(date, 'h:mm a')}`;
-    } else {
-      return `Last seen ${formatDistanceToNow(date)} ago`;
-    }
-  };
-
   // Memoized filtered users
   const filteredUsers = useMemo(() => {
     return users.filter(user =>
@@ -470,77 +502,50 @@ const Messenger = () => {
     );
   }, [users, searchTerm]);
 
-  // Get last message for a user
+  // Get last message for a user with improved sorting
   const getLastMessage = useCallback((userId) => {
     const conversation = conversations[userId] || [];
-    if (!conversation.length) return { text: 'No messages yet', time: '', isUnread: false };
+    if (!conversation.length) return { text: 'No messages yet', time: '', isUnread: false, timestamp: 0 };
 
     const lastMsg = conversation[conversation.length - 1];
     const isUnread = lastMsg.sender !== loggedUser?._id && lastMsg.status !== 'read';
-    
+
     return {
       text: lastMsg.content.length > 30
         ? `${lastMsg.content.substring(0, 30)}...`
         : lastMsg.content,
       time: formatMessageTime(lastMsg.timestamp),
       isUnread,
-      timestamp: lastMsg.timestamp
+      timestamp: new Date(lastMsg.timestamp).getTime()
     };
   }, [conversations, loggedUser]);
 
-  // Sort users by last message time
+  // Sort users by last message time with proper fallbacks
   const sortedUsers = useMemo(() => {
     return [...filteredUsers].sort((a, b) => {
-      const aLastMsg = getLastMessage(a._id).timestamp || '0';
-      const bLastMsg = getLastMessage(b._id).timestamp || '0';
-      return new Date(bLastMsg) - new Date(aLastMsg);
+      const aLastMsg = getLastMessage(a._id);
+      const bLastMsg = getLastMessage(b._id);
+      
+      // If both have messages, sort by timestamp
+      if (aLastMsg.timestamp && bLastMsg.timestamp) {
+        return bLastMsg.timestamp - aLastMsg.timestamp;
+      }
+      
+      // If only one has messages, put that one first
+      if (aLastMsg.timestamp && !bLastMsg.timestamp) return -1;
+      if (!aLastMsg.timestamp && bLastMsg.timestamp) return 1;
+      
+      // If neither has messages, maintain original order
+      return 0;
     });
   }, [filteredUsers, getLastMessage]);
 
   // Mark all notifications as read
   const markAllNotificationsAsRead = () => {
-    setNotifications(prev => 
+    setNotifications(prev =>
       prev.map(notif => ({ ...notif, read: true }))
     );
   };
-
-  // Memoized Message component
-  const MessageItem = useMemo(() =>
-    React.memo(({ message, isCurrentUser, senderName }) => (
-      <div className={`mb-4 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-        <div className={`flex flex-col max-w-xs md:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
-          {!isCurrentUser && (
-            <span className="text-xs text-gray-500 mb-1">
-              {senderName}
-            </span>
-          )}
-          <div
-            className={`rounded-lg px-4 py-2 ${isCurrentUser
-              ? 'bg-blue-500 text-white rounded-br-none'
-              : 'bg-gray-200 text-gray-900 rounded-bl-none'
-              }`}
-          >
-            <p className="whitespace-pre-wrap">{message.content}</p>
-            <div className={`flex items-center mt-1 space-x-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-              <span className={`text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
-                {formatMessageTime(message.timestamp)}
-              </span>
-              {isCurrentUser && (
-                <span className={`text-xs ${message.status === 'read' ? 'text-blue-300' : 'text-blue-100'}`}>
-                  {message.status === 'read' ? (
-                    <BsCheck2All />
-                  ) : message.status === 'delivered' ? (
-                    <FiCheckCircle />
-                  ) : (
-                    <FiCheck />
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )), []);
 
   if (isLoading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
   if (!loggedUser) return <div className="text-center p-8">Please log in to use the chat</div>;
@@ -548,262 +553,50 @@ const Messenger = () => {
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-6">
       {/* Notification sound element (hidden) */}
-      <audio ref={notificationSoundRef} src="/notification.mp3" preload="auto" />
-      
+      {/* <audio ref={notificationSoundRef} src="/notification.mp3" preload="auto" /> */}
+
       <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl overflow-hidden flex flex-col md:flex-row h-[calc(100vh-2rem)]">
-        {/* Contacts sidebar */}
-        <div className="w-full md:w-1/3 border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold">Chats</h1>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className="relative p-2 rounded-full hover:bg-gray-100"
-                  >
-                    <IoMdNotifications size={20} />
-                    {notifications.some(n => !n.read) && (
-                      <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                        {notifications.filter(n => !n.read).length}
-                      </span>
-                    )}
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-500 text-white font-bold text-lg uppercase">
-                    {loggedUser.email.charAt(0)}
-                  </div>
-                  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                </div>
-              </div>
-            </div>
+        <ContactsList
+          loggedUser={loggedUser}
+          users={sortedUsers}
+          selectedUser={selectedUser}
+          handleUserSelect={handleUserSelect}
+          unreadCounts={unreadCounts}
+          getLastMessage={getLastMessage}
+          typingStatus={typingStatus}
+          onlineUsers={onlineUsers}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          notifications={notifications}
+          showNotifications={showNotifications}
+          setShowNotifications={setShowNotifications}
+          markAllNotificationsAsRead={markAllNotificationsAsRead}
+          isConnected={isConnected}
+          formatMessageTime={formatMessageTime}
+        />
 
-            {/* Notifications dropdown */}
-            {showNotifications && (
-              <div className="absolute right-4 md:right-auto md:left-1/3 mt-2 w-72 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                <div className="p-2 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-medium">Notifications</h3>
-                  <button 
-                    onClick={markAllNotificationsAsRead}
-                    className="text-xs text-blue-500 hover:text-blue-700"
-                  >
-                    Mark all as read
-                  </button>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">No notifications</div>
-                  ) : (
-                    notifications.map(notif => (
-                      <div 
-                        key={notif.id} 
-                        className={`p-3 border-b border-gray-100 ${!notif.read ? 'bg-blue-50' : ''}`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{notif.sender}</p>
-                            <p className="text-sm text-gray-600">{notif.message}</p>
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {formatDistanceToNow(new Date(notif.timestamp))} ago
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-3 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search contacts..."
-                className="w-full pl-10 pr-4 py-2 rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4">
-              <h2 className="text-lg font-semibold mb-2">Recent Conversations</h2>
-              <ul className="space-y-2">
-                {sortedUsers.map((user) => (
-                  <li
-                    key={user._id}
-                    className={`p-3 rounded-lg transition-all cursor-pointer relative ${selectedUser?._id === user._id
-                      ? 'bg-blue-50'
-                      : 'hover:bg-gray-100'
-                      }`}
-                    onClick={() => handleUserSelect(user)}
-                  >
-                    {unreadCounts[user._id] > 0 && (
-                      <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                        {unreadCounts[user._id]}
-                      </span>
-                    )}
-                    <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white text-lg">
-                          {user.name.charAt(0)}
-                        </div>
-                        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                          onlineUsers.includes(user._id) ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{user.name}</p>
-                        <p className={`text-sm truncate ${getLastMessage(user._id).isUnread ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
-                          {typingStatus[user._id] ? (
-                            <span className="text-blue-500">typing...</span>
-                          ) : (
-                            getLastMessage(user._id).text
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-xs text-gray-400 whitespace-nowrap">
-                          {getLastMessage(user._id).time}
-                        </span>
-                        {getLastMessage(user._id).isUnread && (
-                          <span className="w-2 h-2 bg-blue-500 rounded-full mt-1"></span>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Chat area */}
         {selectedUser ? (
-          <div className="flex-1 flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white text-lg">
-                    {selectedUser.name.charAt(0)}
-                  </div>
-                  <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                    onlineUsers.includes(selectedUser._id) ? 'bg-green-500' : 'bg-gray-400'
-                  }`}></span>
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">{selectedUser.name}</h2>
-                  <p className="text-xs text-gray-500">
-                    {onlineUsers.includes(selectedUser._id) 
-                      ? 'Online' 
-                      : formatLastSeen(selectedUser.lastSeenAt)}
-                  </p>
-                </div>
-              </div>
-              <button className="p-2 rounded-full hover:bg-gray-100">
-                <BsThreeDotsVertical />
-              </button>
-            </div>
-
-            <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                  <p>No messages yet</p>
-                  <p className="text-sm">Start a conversation with {selectedUser.name}</p>
-                </div>
-              ) : (
-                <>
-                  {messages.map((message, index) => {
-                    // Check if we should show date separator
-                    const showDateSeparator = index === 0 || 
-                      !isToday(new Date(message.timestamp)) && 
-                      !isToday(new Date(messages[index - 1].timestamp)) &&
-                      format(new Date(message.timestamp), 'yyyy-MM-dd') !== 
-                      format(new Date(messages[index - 1].timestamp), 'yyyy-MM-dd');
-
-                    return (
-                      <React.Fragment key={message._id}>
-                        {showDateSeparator && (
-                          <div className="flex justify-center my-4">
-                            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                              {isToday(new Date(message.timestamp)) 
-                                ? 'Today' 
-                                : isYesterday(new Date(message.timestamp))
-                                ? 'Yesterday'
-                                : format(new Date(message.timestamp), 'MMMM d, yyyy')}
-                            </div>
-                          </div>
-                        )}
-                        <MessageItem
-                          message={message}
-                          isCurrentUser={message.sender === loggedUser._id}
-                          senderName={getSenderName(message)}
-                        />
-                      </React.Fragment>
-                    );
-                  })}
-                  {typingStatus[selectedUser._id] && (
-                    <div className="mb-4 flex justify-start">
-                      <div className="flex flex-col max-w-xs md:max-w-md">
-                        <span className="text-xs text-gray-500 mb-1">
-                          {selectedUser.name}
-                        </span>
-                        <div className="bg-gray-200 rounded-lg rounded-bl-none px-4 py-2">
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-gray-200 bg-white">
-              <div className="flex items-center">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-2 rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim() || !isConnected}
-                  className="ml-2 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <FiSend size={20} />
-                </button>
-              </div>
-              {!isConnected && (
-                <div className="text-xs text-red-500 mt-2">
-                  Connection lost - messages will be sent when reconnected
-                </div>
-              )}
-            </div>
-          </div>
+          <ChatArea
+            selectedUser={selectedUser}
+            loggedUser={loggedUser}
+            messages={messages}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            handleSendMessage={handleSendMessage}
+            handleInputChange={handleInputChange}
+            handleKeyPress={handleKeyPress}
+            isConnected={isConnected}
+            typingStatus={typingStatus}
+            onlineUsers={onlineUsers}
+            formatLastSeen={formatLastSeen}
+            getSenderName={getSenderName}
+            messagesEndRef={messagesEndRef}
+            inputRef={inputRef}
+            formatMessageTime={formatMessageTime}
+            isToday={isToday}
+          />
         ) : (
-          <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
-            <div className="text-center p-6 max-w-md">
-              <div className="mx-auto w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                <FiEdit2 size={40} className="text-gray-400" />
-              </div>
-              <h3 className="text-xl font-medium mb-2">Select a chat</h3>
-              <p className="text-gray-500">
-                Choose a conversation from the sidebar to start messaging or search for a contact.
-              </p>
-            </div>
-          </div>
+          <EmptyState />
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import Cookies from "js-cookie";
 import { useState, useEffect } from "react";
 import { FcSearch } from "react-icons/fc";
 
@@ -19,13 +20,13 @@ export default function Tasks() {
   const [filterByUser, setFilterByUser] = useState(false);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const loggedUser = localStorage.getItem('loggedUser');
+    const storedUser = Cookies.get('user');
+    const loggedUser = Cookies.get('loggedUser');
     if (storedUser || loggedUser) {
       setUser(JSON.parse(storedUser || loggedUser));
     }
 
-    const storedTasks = localStorage.getItem('tasks');
+    const storedTasks = Cookies.get('tasks');
     if (storedTasks) {
       setTasks(JSON.parse(storedTasks));
     }
@@ -35,7 +36,7 @@ export default function Tasks() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
+    Cookies.set('tasks', JSON.stringify(tasks));
   }, [tasks]);
 
   const fetchTasks = async () => {

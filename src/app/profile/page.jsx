@@ -1,5 +1,6 @@
 'use client';
 
+import Cookies from 'js-cookie';
 import { useState, useEffect } from 'react';
 
 export default function UserProfile() {
@@ -9,10 +10,10 @@ export default function UserProfile() {
 
     useEffect(() => {
         const fetchUserData = async () => {
-            const storedUser = localStorage.getItem('loggedUser');
+            const storedUser = Cookies.get('loggedUser');
             if (storedUser) {
                 const userData = JSON.parse(storedUser);
-                const email = userData?.email;  // Extract email from the stored user
+                const email = userData?.email;  
                 
                 if (email) {
                     try {
@@ -23,7 +24,7 @@ export default function UserProfile() {
                         }
 
                         const data = await response.json();
-                        setUser(data);  // Set user data from API response
+                        setUser(data);  
                     } catch (error) {
                         setError(error.message);
                         console.error("Error fetching user data:", error);

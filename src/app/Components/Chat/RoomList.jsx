@@ -1,0 +1,351 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+import { FiLock, FiUnlock, FiUsers, FiCalendar, FiUser } from 'react-icons/fi';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation, Pagination } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
+
+export default function RoomList() {
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch('/api/room', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            router.push('/login');
+            return;
+          }
+          throw new Error(`Failed to fetch rooms (${res.status})`);
+        }
+
+        const data = await res.json();
+        setRooms(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, [router]);
+
+  const handleJoin = async (roomId, isPrivate) => {
+    try {
+      if (isPrivate) {
+        const password = prompt('Enter room password:');
+        if (!password) return;
+
+        const res = await fetch(`/api/room/${roomId}/join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ password }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to join room');
+        }
+      } else {
+        const res = await fetch(`/api/room/${roomId}/join`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to join room');
+        }
+      }
+
+      toast.success('Successfully joined room!');
+      router.refresh();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <div className="animate-pulse flex space-x-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="w-72 h-64 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+          ))}
+        </div>
+        <p className="text-gray-500 dark:text-gray-400">Loading rooms...</p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto p-6 bg-red-50 dark:bg-red-900/20 rounded-xl shadow-sm">
+        <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+          <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h3 className="font-medium">Error loading rooms</h3>
+            <p className="text-sm">{error}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/40 rounded-md transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (rooms.length === 0) {
+    return (
+      <div className="max-w-md mx-auto p-8 text-center">
+        <div className="mx-auto w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
+          <FiUsers className="w-10 h-10 text-blue-500" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No rooms available</h3>
+        <p className="text-gray-500 dark:text-gray-400 mb-6">
+          Be the first to create a room and start collaborating!
+        </p>
+        <button
+          onClick={() => router.push('/create-room')}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors"
+        >
+          Create Room
+        </button>
+      </div>
+    );
+  }
+
+  const swiperStyles = `
+  /* Custom navigation arrows - positioned outside container */
+  .swiper-button-next,
+  .swiper-button-prev {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    color: #3b82f6;
+    transition: all 0.3s ease;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-top: 0;
+    position: absolute;
+    z-index: 10;
+  }
+
+  /* Left arrow positioned outside left edge */
+  .swiper-button-prev {
+    left: -2px;
+  }
+
+  /* Right arrow positioned outside right edge */
+  .swiper-button-next {
+    right: -2px;
+  }
+
+  /* Hide arrows when at beginning/end */
+  .swiper-button-disabled {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .swiper-button-next:hover,
+  .swiper-button-prev:hover {
+    background-color: #f8fafc;
+    color: #2563eb;
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .swiper-button-next::after,
+  .swiper-button-prev::after {
+    font-size: 20px;
+    font-weight: bold;
+  }
+
+  /* Dark mode styles for arrows */
+  .dark .swiper-button-next,
+  .dark .swiper-button-prev {
+    background-color: #1e293b;
+    color: #93c5fd;
+  }
+
+  .dark .swiper-button-next:hover,
+  .dark .swiper-button-prev:hover {
+    background-color: #334155;
+    color: #60a5fa;
+  }
+
+  /* Custom pagination container */
+  .swiper-pagination {
+    position: relative !important;
+    margin-top: 40px !important;
+    bottom: auto !important;
+  }
+
+  /* Pagination bullets */
+  .swiper-pagination-bullet {
+    width: 10px;
+    height: 10px;
+    background: #9ca3af;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+    margin: 0 6px !important;
+  }
+
+  .swiper-pagination-bullet-active {
+    background: #3b82f6;
+    opacity: 1;
+    transform: scale(1.2);
+  }
+
+  /* Dark mode styles for pagination */
+  .dark .swiper-pagination-bullet {
+    background: #6b7280;
+  }
+
+  .dark .swiper-pagination-bullet-active {
+    background: #93c5fd;
+  }
+
+  /* Main container adjustments */
+  .swiper {
+    padding: 0 24px;
+  }
+`;
+
+  return (
+    <>
+      <style jsx global>{swiperStyles}</style>
+      <div className="container mx-auto py-8">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Available Rooms</h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            {rooms.length} {rooms.length === 1 ? 'room' : 'rooms'} available
+          </p>
+        </div>
+
+        <div className="relative">
+          <Swiper
+            modules={[Navigation, Pagination]}
+            spaceBetween={24}
+            slidesPerView={1}
+            navigation
+            pagination={{ clickable: true }}
+            breakpoints={{
+              640: {
+                slidesPerView: 1,
+              },
+              768: {
+                slidesPerView: 2,
+              },
+              1024: {
+                slidesPerView: 3,
+              },
+            }}
+            className="pb-10"
+          >
+            {rooms.map((room) => (
+              <SwiperSlide key={room._id}>
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow h-full">
+                  <div className="p-6 h-full flex flex-col">
+                    {/* Privacy badge */}
+                    <div className="flex justify-end mb-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${room.isPrivate
+                        ? 'bg-red-500/10 text-red-600 dark:text-red-300'
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                        }`}>
+                        {room.isPrivate ? (
+                          <>
+                            <FiLock className="inline mr-1" />
+                            Private
+                          </>
+                        ) : (
+                          <>
+                            <FiUnlock className="inline mr-1" />
+                            Public
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Room content */}
+                    <div className="flex-grow">
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{room.name}</h2>
+
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center text-gray-700 dark:text-gray-300">
+                          <FiUsers className="flex-shrink-0 mr-2 text-gray-500" />
+                          <span>{room.members?.length || 0} members</span>
+                        </div>
+
+                        {room.createdBy && (
+                          <div className="flex items-center text-gray-700 dark:text-gray-300">
+                            <FiUser className="flex-shrink-0 mr-2 text-gray-500" />
+                            <span className="truncate">Created by: {room.createdBy.name || room.createdBy.email || 'Anonymous'}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center text-gray-500 dark:text-gray-400">
+                          <FiCalendar className="flex-shrink-0 mr-2 text-gray-500" />
+                          <span>
+                            {new Date(room.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Join button */}
+                    <button
+                      onClick={() => handleJoin(room._id, room.isPrivate)}
+                      className={`mt-4 w-full py-2 rounded-lg font-medium transition-colors ${room.isPrivate
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                    >
+                      Join Room
+                    </button>
+                  </div>
+                </div>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </div>
+      </div>
+    </>
+  );
+}

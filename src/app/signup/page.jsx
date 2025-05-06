@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation"; 
+import Cookies from "js-cookie";
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -34,7 +35,7 @@ export default function Signup() {
 
       if (response.ok) {
         const user = { name, email, role };
-        localStorage.setItem('user', JSON.stringify(user));
+        Cookies.set('user', JSON.stringify(user));
 
         setName("");
         setEmail("");
