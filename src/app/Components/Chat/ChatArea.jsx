@@ -4,6 +4,7 @@ import ChatHeader from './ChatHeader';
 import DateSeparator from './DateSeparator';
 import MessageItem from './MessageItem';
 import TypingIndicator from './TypingIndicator';
+import { format } from 'date-fns';
 
 
 const ChatArea = ({
@@ -11,7 +12,6 @@ const ChatArea = ({
     loggedUser,
     messages,
     newMessage,
-    setNewMessage,
     formatMessageTime,
     handleSendMessage,
     handleInputChange,

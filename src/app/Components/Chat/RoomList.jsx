@@ -1,20 +1,39 @@
 'use client';
 
+import Cookies from 'js-cookie';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { FiLock, FiUnlock, FiUsers, FiCalendar, FiUser } from 'react-icons/fi';
+import { FiLock, FiUnlock, FiUsers, FiCalendar, FiUser, FiSearch } from 'react-icons/fi';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-export default function RoomList() {
+export default function RoomList({ refreshKey }) {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
+  const [loggedUser, setLoggedUser] = useState(null);
+  const userEmail = loggedUser?.email;
+
+  useEffect(() => {
+    // Safely parse the cookie
+    try {
+      const userCookie = Cookies.get('loggedUser');
+      if (userCookie) {
+        setLoggedUser(JSON.parse(userCookie));
+      }
+    } catch (err) {
+      console.error('Error parsing user cookie:', err);
+      // Optionally redirect to login if cookie is invalid
+      // router.push('/login');
+    }
+  }, []);
+
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -48,45 +67,63 @@ export default function RoomList() {
     };
 
     fetchRooms();
-  }, [router]);
+  }, [router, refreshKey]);
 
-  const handleJoin = async (roomId, isPrivate) => {
+  // console.log(userEmail)
+
+  const handleJoin = async (roomId, isPrivate, userEmail) => {
     try {
+      let res;
+
       if (isPrivate) {
         const password = prompt('Enter room password:');
         if (!password) return;
 
-        const res = await fetch(`/api/room/${roomId}/join`, {
+        res = await fetch(`/api/room/${roomId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ password }),
+          body: JSON.stringify({
+            userEmail,
+            action: 'join',  
+            password        
+          }),
         });
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to join room');
-        }
       } else {
-        const res = await fetch(`/api/room/${roomId}/join`, {
+        res = await fetch(`/api/room/${roomId}`, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           credentials: 'include',
+          body: JSON.stringify({
+            userEmail,
+            action: 'join' 
+          }),
         });
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to join room');
-        }
       }
 
-      toast.success('Successfully joined room!');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to join room');
+      }
+
+      const result = await res.json();
+      toast.success(result.message || 'Successfully joined room!');
+      Cookies.set('roomId', roomId);
+      router.push('/join-room');
       router.refresh();
     } catch (err) {
       toast.error(err.message);
     }
   };
+
+  // Filter rooms based on search term
+  const filteredRooms = rooms.filter(room =>
+    room.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Loading state
   if (loading) {
@@ -125,26 +162,47 @@ export default function RoomList() {
     );
   }
 
-  // Empty state
-  if (rooms.length === 0) {
+  // Empty state (no rooms or no matching rooms)
+  if (filteredRooms.length === 0) {
     return (
-      <div className="max-w-md mx-auto p-8 text-center">
-        <div className="mx-auto w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
-          <FiUsers className="w-10 h-10 text-blue-500" />
+      <div className="max-w-4xl mx-auto">
+        {/* Search input */}
+        <div className="mb-8 max-w-md mx-auto relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FiSearch className="text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search rooms by name..."
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No rooms available</h3>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">
-          Be the first to create a room and start collaborating!
-        </p>
-        <button
-          onClick={() => router.push('/create-room')}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors"
-        >
-          Create Room
-        </button>
+
+        <div className="max-w-md mx-auto p-8 text-center">
+          <div className="mx-auto w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
+            <FiUsers className="w-10 h-10 text-blue-500" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            {searchTerm ? 'No matching rooms found' : 'No rooms available'}
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            {searchTerm
+              ? 'Try a different search term'
+              : 'Be the first to create a room and start collaborating!'}
+          </p>
+          <button
+            onClick={() => router.push('/create-room')}
+            className="px-6 py-3 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors"
+          >
+            Create Room
+          </button>
+        </div>
       </div>
     );
   }
+
 
   const swiperStyles = `
   /* Custom navigation arrows - positioned outside container */
@@ -251,8 +309,22 @@ export default function RoomList() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Available Rooms</h1>
           <p className="text-gray-500 dark:text-gray-400">
-            {rooms.length} {rooms.length === 1 ? 'room' : 'rooms'} available
+            {filteredRooms.length} {filteredRooms.length === 1 ? 'room' : 'rooms'} found
           </p>
+        </div>
+
+        {/* Search input */}
+        <div className="mb-8 max-w-md mx-auto relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FiSearch className="text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search rooms by name..."
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
 
         <div className="relative">
@@ -275,7 +347,7 @@ export default function RoomList() {
             }}
             className="pb-10"
           >
-            {rooms.map((room) => (
+            {filteredRooms.map((room) => (
               <SwiperSlide key={room._id}>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow h-full">
                   <div className="p-6 h-full flex flex-col">
@@ -331,8 +403,8 @@ export default function RoomList() {
 
                     {/* Join button */}
                     <button
-                      onClick={() => handleJoin(room._id, room.isPrivate)}
-                      className={`mt-4 w-full py-2 rounded-lg font-medium transition-colors ${room.isPrivate
+                      onClick={() => handleJoin(room._id, room.isPrivate, userEmail)}
+                      className={`mt-4 w-full cursor-pointer py-2 rounded-lg font-medium transition-colors ${room.isPrivate
                         ? 'bg-red-600 hover:bg-red-700 text-white'
                         : 'bg-blue-600 hover:bg-blue-700 text-white'
                         }`}
@@ -347,5 +419,6 @@ export default function RoomList() {
         </div>
       </div>
     </>
+
   );
 }

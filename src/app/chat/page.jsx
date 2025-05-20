@@ -112,7 +112,7 @@ const Messenger = () => {
         if (!res.ok) throw new Error('Failed to fetch users');
         const data = await res.json();
 
-        const storedUser = localStorage.getItem('loggedUser');
+        const storedUser = Cookies.get('loggedUser');
         if (storedUser) {
           const userData = JSON.parse(storedUser);
           const fullUser = data.find(user => user.email === userData.email) || userData;
