@@ -26,12 +26,18 @@ const messageSchema = new mongoose.Schema({
     read: {
       type: Boolean,
       default: false
-    }
+    },
+    room: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'rooms',
+    default: null
+  }
   });
   
   // Create indexes
   messageSchema.index({ sender: 1, receiver: 1 });
   messageSchema.index({ timestamp: -1 });
+  messageSchema.index({ room: 1 });
   
   // Export model
   const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);

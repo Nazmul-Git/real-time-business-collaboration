@@ -32,9 +32,9 @@ const io = new Server(httpServer, {
 });
 
 // Connection manager
-const activeUsers = new Map(); // Maps userEmail to socket.id
-const userRooms = new Map();   // Maps userEmail to roomIds they're in
-const roomMembers = new Map(); // Maps roomId to Set of userEmails
+const activeUsers = new Map();
+const userRooms = new Map();   
+const roomMembers = new Map();
 
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);

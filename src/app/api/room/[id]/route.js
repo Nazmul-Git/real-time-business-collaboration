@@ -170,6 +170,7 @@ export async function POST(request) {
 
     switch (action.toLowerCase()) {
       case 'join':
+        // Check if room is private and validate password
         if (room.isPrivate) {
           if (!password) {
             return NextResponse.json(
@@ -185,18 +186,15 @@ export async function POST(request) {
           }
         }
 
-        if (room.members.some(memberId => memberId.equals(user._id))) {
-          return NextResponse.json(
-            { error: 'User is already a member of this room' },
-            { status: 400 }
-          );
+        // Add user to members array if not already present
+        if (!room.members.some(memberId => memberId.equals(user._id))) {
+          room.members.push(user._id);
+          await room.save();
         }
-
-        room.members.push(user._id);
-        await room.save();
         break;
 
       case 'leave':
+        // Remove user from members array if present
         room.members = room.members.filter(
           memberId => !memberId.equals(user._id)
         );
