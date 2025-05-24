@@ -7,8 +7,8 @@ export async function GET(req) {
         await dbConnect();
 
         // Check if we are querying for a specific user by email
-        const { searchParams } = new URL(req.url); // Use URL to handle query params
-        const email = searchParams.get("email");  // Get email from query params
+        const { searchParams } = new URL(req.url); 
+        const email = searchParams.get("email");  
 
         if (email) {
             // Fetch user by email if provided

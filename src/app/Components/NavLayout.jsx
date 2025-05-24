@@ -44,6 +44,7 @@ const NavLayout = () => {
         Cookies.remove('loggedUser', { path: '/' });
         Cookies.remove('token', { path: '/' });
         Cookies.remove('activeNavItem', { path: '/' });
+        Cookies.remove('roomId', { path: '/' });
         router.push('/login');
     };
 

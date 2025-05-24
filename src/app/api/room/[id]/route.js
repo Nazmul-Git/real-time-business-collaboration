@@ -207,6 +207,7 @@ export async function POST(request) {
           { status: 400 }
         );
     }
+    
 
     const updatedRoom = await getPopulatedRoom(id);
     return NextResponse.json({

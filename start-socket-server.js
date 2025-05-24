@@ -33,7 +33,7 @@ const io = new Server(httpServer, {
 
 // Connection manager
 const activeUsers = new Map();
-const userRooms = new Map();   
+const userRooms = new Map();
 const roomMembers = new Map();
 
 io.on('connection', (socket) => {
@@ -46,59 +46,54 @@ io.on('connection', (socket) => {
   });
 
   // Join room
-  socket.on('join-room', ({ roomId, userEmail }) => {
+  socket.on('join-room', ({ roomId, userId, userName }) => {
     try {
-      // Add user to room
       socket.join(roomId);
-      
-      // Track room membership
-      if (!roomMembers.has(roomId)) {
-        roomMembers.set(roomId, new Set());
-      }
-      roomMembers.get(roomId).add(userEmail);
-      
-      // Track user's rooms
-      if (!userRooms.has(userEmail)) {
-        userRooms.set(userEmail, new Set());
-      }
-      userRooms.get(userEmail).add(roomId);
-      
-      // Notify room members
-      socket.to(roomId).emit('user-joined', { 
-        userEmail,
-        roomId,
-        members: Array.from(roomMembers.get(roomId))
-      });
-      
-      console.log(`User ${userEmail} joined room ${roomId}`);
+
+      // Track room members
+      if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Map());
+      roomMembers.get(roomId).set(userId, userName);
+
+      // Track user rooms
+      if (!userRooms.has(userId)) userRooms.set(userId, new Set());
+      userRooms.get(userId).add(roomId);
+
+      // Active users
+      activeUsers.set(userId, socket.id);
+
+      // Notify all clients in room
+      io.to(roomId).emit('room-members', Array.from(roomMembers.get(roomId)).map(([id, name]) => ({ id, name })));
+
+      console.log(`${userName} joined room ${roomId}`);
     } catch (err) {
       console.error('Error joining room:', err);
     }
   });
+
 
   // Leave room
   socket.on('leave-room', ({ roomId, userEmail }) => {
     try {
       // Remove user from room
       socket.leave(roomId);
-      
+
       // Update room membership
       if (roomMembers.has(roomId)) {
         roomMembers.get(roomId).delete(userEmail);
-        
+
         // Notify remaining members
         socket.to(roomId).emit('user-left', {
           userEmail,
           roomId,
           members: Array.from(roomMembers.get(roomId))
         });
-        
+
         // Clean up empty rooms
         if (roomMembers.get(roomId).size === 0) {
           roomMembers.delete(roomId);
         }
       }
-      
+
       // Update user's room list
       if (userRooms.has(userEmail)) {
         userRooms.get(userEmail).delete(roomId);
@@ -106,7 +101,7 @@ io.on('connection', (socket) => {
           userRooms.delete(userEmail);
         }
       }
-      
+
       console.log(`User ${userEmail} left room ${roomId}`);
     } catch (err) {
       console.error('Error leaving room:', err);
@@ -117,21 +112,27 @@ io.on('connection', (socket) => {
   socket.on('room-message', (message) => {
     try {
       console.log('Room message received:', message);
-      
-      // Broadcast to all in room except sender
-      socket.to(message.roomId).emit('room-message', message);
-      
-      // Send delivery confirmation
+
+      const roomId = message.room || message.roomId;
+
+      if (!roomId) {
+        console.warn('No roomId in message:', message);
+        return;
+      }
+
+      socket.to(roomId).emit('room-message', message);
+
       socket.emit('message-status', {
-        messageId: message.id,
+        messageId: message._id || message.id,
         status: 'delivered'
       });
-      
-      console.log(`Room message broadcast to room ${message.roomId}`);
+
+      console.log(`Room message broadcast to room ${roomId}`);
     } catch (err) {
       console.error('Room message handling error:', err);
     }
   });
+
 
   // Typing indicator in room
   socket.on('room-typing', (data) => {
@@ -200,7 +201,7 @@ io.on('connection', (socket) => {
           });
           userRooms.delete(email);
         }
-        
+
         // Remove from active users
         activeUsers.delete(email);
         console.log(`User ${email} disconnected`);
@@ -212,8 +213,8 @@ io.on('connection', (socket) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     connections: activeUsers.size,
     rooms: roomMembers.size
   });

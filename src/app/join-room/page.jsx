@@ -79,23 +79,17 @@ export default function ChatRoom() {
           });
         });
 
-        socket.on('connect_error', (err) => {
-          console.error('Connection error:', err);
-          toast.error('Failed to connect to chat server. Trying to reconnect...');
-        });
-
-        socket.on('reconnect_attempt', () => {
-          console.log('Attempting to reconnect...');
-        });
-
-        socket.on('reconnect_failed', () => {
-          toast.error('Failed to reconnect to chat server');
-        });
-
-        // Message handling - updated to match schema
-        socket.on('message', (message) => {
-          if (message.room === roomIdFromCookie) {
-            setMessages(prev => [...prev, message]);
+        // Message handling
+        socket.on('room-message', (message) => {
+          if (message.room.toString() === roomIdFromCookie) {
+            setMessages(prev => [...prev, {
+              _id: message._id,
+              sender: message.sender,
+              content: message.content,
+              room: message.room,
+              timestamp: message.timestamp,
+              read: message.read || false
+            }]);
             scrollToBottom();
           }
         });
@@ -126,8 +120,17 @@ export default function ChatRoom() {
 
         // Message acknowledgement
         socket.on('message-ack', (ack) => {
-          setMessages(prev => prev.map(msg => 
-            msg.tempId === ack.tempId ? { ...msg, _id: ack._id, status: 'delivered' } : msg
+          setMessages(prev => prev.map(msg =>
+            msg.tempId === ack.tempId ? {
+              ...msg,
+              _id: ack._id,
+              status: 'delivered',
+              sender: ack.sender,
+              receiver: ack.receiver,
+              content: ack.content,
+              room: ack.room,
+              read: ack.read || false
+            } : msg
           ));
         });
 
@@ -138,10 +141,10 @@ export default function ChatRoom() {
         if (!roomRes.ok) throw new Error('Failed to load room');
         const roomData = await roomRes.json();
         setRoom(roomData);
-        
+
       } catch (err) {
         console.error('Initialization error:', err);
-        toast.error(err instanceof Error ? err.message : 'An error occurred');
+        toast.error(err.message || 'An error occurred');
         router.push('/');
       } finally {
         setIsLoading(false);
@@ -165,7 +168,7 @@ export default function ChatRoom() {
     }, 100);
   }, []);
 
-  // Handle sending messages - updated to match schema
+  // Handle sending messages
   const handleSendMessage = async () => {
     if (!newMessage.trim()) {
       toast.error('Message cannot be empty');
@@ -180,25 +183,25 @@ export default function ChatRoom() {
     if (!loggedUser || isSending) return;
 
     const tempId = Date.now().toString();
+
     const message = {
       tempId,
-      room: roomID, // Changed from roomId to room
-      sender: loggedUser._id, // Changed from userId to sender
-      senderName: loggedUser.name || loggedUser.email, // Added senderName
-      content: newMessage, // Changed from text to content
-      timestamp: new Date().toISOString(),
-      status: 'sending'
+      sender: loggedUser._id,
+      content: newMessage,
+      room: roomID,
+      timestamp: new Date(),
+      status: 'sending',
+      read: false
     };
+
 
     try {
       setIsSending(true);
-      
-      // Optimistic update
       setMessages(prev => [...prev, message]);
       setNewMessage('');
       scrollToBottom();
 
-      // First try to save to database
+      // Save to database via API
       const apiResponse = await fetch(`/api/join-room/${roomID}`, {
         method: 'POST',
         headers: {
@@ -206,52 +209,57 @@ export default function ChatRoom() {
         },
         body: JSON.stringify({
           sender: loggedUser._id,
-          senderName: loggedUser.name || loggedUser.email,
           content: newMessage,
           room: roomID
         }),
       });
 
       if (!apiResponse.ok) {
-        throw new Error('Failed to save message');
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || 'Failed to save message');
       }
 
-      const savedMessage = await apiResponse.json();
+      const responseData = await apiResponse.json();
+      const savedMessage = responseData.message;
 
-      // Then broadcast via socket if API save succeeded
-      socketRef.current.emit('message', {
-        ...savedMessage.message,
-        tempId // Include tempId for ack matching
+      // Broadcast via socket
+      socketRef.current.emit('room-message', {
+        ...savedMessage,
+        tempId
       });
 
-      // Update with final server-saved message
-      setMessages(prev => prev.map(msg => 
-        msg.tempId === tempId 
-          ? { ...savedMessage.message, status: 'delivered' } 
+      // Update UI with final message from server
+      setMessages(prev => prev.map(msg =>
+        msg.tempId === tempId
+          ? {
+            ...savedMessage,
+            status: 'delivered',
+            sender: savedMessage.sender,
+            receiver: savedMessage.receiver,
+            content: savedMessage.content,
+            room: savedMessage.room,
+            read: savedMessage.read || false
+          }
           : msg
       ));
 
     } catch (err) {
       console.error('Error sending message:', err);
-      
-      // Update status to failed
-      setMessages(prev => prev.map(msg => 
+      setMessages(prev => prev.map(msg =>
         msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
       ));
-
-      toast.error('Failed to send message. Please try again.');
-      
+      toast.error(err.message || 'Failed to send message');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Handle typing indicators with debounce
+  // Handle typing indicators
   const handleTyping = useCallback(() => {
     if (!socketRef.current || !loggedUser) return;
 
     const emitTyping = (isTyping) => {
-      socketRef.current?.emit('typing', {
+      socketRef.current.emit('room-typing', {
         roomId: roomID,
         userId: loggedUser._id,
         userName: loggedUser.name || loggedUser.email,
@@ -260,35 +268,25 @@ export default function ChatRoom() {
     };
 
     emitTyping(true);
-
-    const timer = setTimeout(() => {
-      emitTyping(false);
-    }, 2000);
-
+    const timer = setTimeout(() => emitTyping(false), 2000);
     return () => {
       clearTimeout(timer);
       emitTyping(false);
     };
   }, [loggedUser, roomID]);
 
-  const handleLeave = useCallback(async (userId) => {
-    if (!userId || !roomID || isLeaving) return;
+  // Handle leaving room
+  const handleLeave = useCallback(async () => {
+    if (!loggedUser?._id || !roomID || isLeaving) return;
 
     try {
       setIsLeaving(true);
-      
-      const hasActivity = messages.length > 0 || activeMembers.length > 1;
-      if (hasActivity) {
-        const shouldLeave = window.confirm(
-          activeMembers.length > 1 
-            ? 'Are you sure you want to leave this chat room?'
-            : 'Are you sure you want to exit? Your messages will be saved.'
-        );
-        if (!shouldLeave) {
-          setIsLeaving(false);
-          return;
-        }
-      }
+      const shouldLeave = window.confirm(
+        activeMembers.length > 1
+          ? 'Are you sure you want to leave this chat room?'
+          : 'Are you sure you want to exit?'
+      );
+      if (!shouldLeave) return;
 
       const response = await fetch(`/api/room/${roomID}`, {
         method: 'POST',
@@ -296,20 +294,18 @@ export default function ChatRoom() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userEmail: loggedUser?.email,
+          userEmail: loggedUser.email,
           action: 'leave'
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(await response.text() || 'Failed to leave room');
-      }
+      if (!response.ok) throw new Error('Failed to leave room');
 
       if (socketRef.current?.connected) {
         socketRef.current.emit('leave-room', {
           roomId: roomID,
-          userId: userId,
-          userName: loggedUser?.name || loggedUser?.email
+          userId: loggedUser._id,
+          userName: loggedUser.name || loggedUser.email
         });
         socketRef.current.disconnect();
       }
@@ -317,14 +313,13 @@ export default function ChatRoom() {
       Cookies.remove('roomId');
       router.push('/room');
       toast.success('You have left the room');
-
     } catch (err) {
       console.error('Error leaving room:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to leave room');
+      toast.error(err.message || 'Failed to leave room');
     } finally {
       setIsLeaving(false);
     }
-  }, [roomID, loggedUser, messages.length, activeMembers.length, router]);
+  }, [roomID, loggedUser, activeMembers.length, router]);
 
   if (isLoading || !room) {
     return (
@@ -345,7 +340,7 @@ export default function ChatRoom() {
       <header className="bg-white dark:bg-gray-800 shadow-sm p-4 sticky top-0 z-10">
         <div className="container mx-auto flex justify-between items-center">
           <button
-            onClick={() => handleLeave(loggedUser?._id || '')}
+            onClick={handleLeave}
             disabled={isLeaving}
             className={`flex items-center ${isLeaving ? 'opacity-50 cursor-not-allowed' : ''} text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white`}
           >
@@ -385,7 +380,7 @@ export default function ChatRoom() {
         </div>
       </header>
 
-      {/* Chat messages - updated to use sender instead of userId */}
+      {/* Chat messages */}
       <div className="flex-1 overflow-y-auto p-4 container mx-auto">
         <div className="space-y-4">
           {messages.length === 0 ? (
@@ -399,34 +394,34 @@ export default function ChatRoom() {
                 className={`flex ${message.sender === loggedUser?._id ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-xs md:max-w-md rounded-lg p-3 relative ${
-                    message.sender === loggedUser?._id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                  }`}
+                  className={`max-w-xs md:max-w-md rounded-lg p-3 relative ${message.sender === loggedUser?._id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                    }`}
                 >
                   {message.sender !== loggedUser?._id && (
                     <div className="font-medium text-sm text-gray-700 dark:text-gray-300">
-                      {message.senderName}
+                      {activeMembers.find(m => m.id === message.sender)?.name || 'Unknown user'}
                     </div>
                   )}
                   <p className="mt-1">{message.content}</p>
-                  <div className={`text-xs mt-1 opacity-70 ${
-                    message.sender === loggedUser?._id ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
-                  }`}>
+                  <div className={`text-xs mt-1 opacity-70 ${message.sender === loggedUser?._id ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
                     {new Date(message.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
+                    {message.read && message.sender === loggedUser?._id && (
+                      <span className="ml-1">✓✓</span>
+                    )}
                   </div>
                   {message.sender === loggedUser?._id && message.status && (
-                    <div className={`absolute -bottom-2 right-2 text-xs ${
-                      message.status === 'sending' ? 'text-gray-400' :
+                    <div className={`absolute -bottom-2 right-2 text-xs ${message.status === 'sending' ? 'text-gray-400' :
                       message.status === 'delivered' ? 'text-green-400' :
-                      'text-red-400'
-                    }`}>
+                        'text-red-400'
+                      }`}>
                       {message.status === 'sending' ? '🔄' :
-                       message.status === 'delivered' ? '✓' : '✗'}
+                        message.status === 'delivered' ? '✓' : '✗'}
                     </div>
                   )}
                 </div>

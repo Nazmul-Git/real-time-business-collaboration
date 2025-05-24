@@ -36,6 +36,8 @@ export default function Login() {
         } else {
           if(!Cookies.get('loggedUser')){
             Cookies.set('token', data.token);
+
+            
             Cookies.set('loggedUser', JSON.stringify(data));
           }
           router.push('/dashboard');
