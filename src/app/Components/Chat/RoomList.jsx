@@ -73,53 +73,56 @@ export default function RoomList({ refreshKey }) {
 
   const handleJoin = async (roomId, isPrivate, userEmail) => {
     try {
-      let res;
-
-      if (isPrivate) {
-        const password = prompt('Enter room password:');
-        if (!password) return;
-
-        res = await fetch(`/api/room/${roomId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            userEmail,
-            action: 'join',  
-            password        
-          }),
-        });
-      } else {
-        res = await fetch(`/api/room/${roomId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            userEmail,
-            action: 'join' 
-          }),
-        });
+      if (!userEmail) {
+        toast.error('You must be logged in to join a room');
+        router.push('/login');
+        return;
       }
+
+      let password;
+      if (isPrivate) {
+        password = prompt('Enter room password:');
+        if (password === null) return; // User cancelled
+        if (!password) {
+          toast.error('Password is required for private rooms');
+          return;
+        }
+      }
+
+      const res = await fetch(`/api/room/${roomId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userEmail,
+          action: 'join',
+          password: password || undefined
+        }),
+      });
+
+      const data = await res.json();
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to join room');
+        if (data.code === 'INCORRECT_PASSWORD') {
+          toast.error('Incorrect password. Please try again.');
+        } else if (data.code === 'INVALID_ROOM_CONFIG') {
+          toast.error('This room is not properly configured. Please contact support.');
+        } else if (data.code === 'PASSWORD_REQUIRED') {
+          toast.error('This room requires a password.');
+        } else {
+          toast.error(data.error || 'Failed to join room');
+        }
+        return;
       }
 
-      const result = await res.json();
-      toast.success(result.message || 'Successfully joined room!');
+      toast.success(data.message || 'Successfully joined room!');
       Cookies.set('roomId', roomId);
       router.push('/join-room');
-      router.refresh();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'An unexpected error occurred');
+      console.error('Join room error:', err);
     }
   };
-
   // Filter rooms based on search term
   const filteredRooms = rooms.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase())

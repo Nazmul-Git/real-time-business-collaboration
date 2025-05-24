@@ -3,6 +3,7 @@ import Room from '@/app/models/Room';
 import User from '@/app/models/User';
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,8 +59,6 @@ export async function GET(request) {
     const url = new URL(request.url);
     const id = url.pathname.split('/').pop();
 
-    console.log('id = ', id)
-
     if (!id || !isValidObjectId(id)) {
       return NextResponse.json(
         { error: 'Valid room ID is required' },
@@ -69,11 +68,11 @@ export async function GET(request) {
 
     // Find room and populate members with essential user details
     const room = await Room.findById(id)
-      .select('members') // Only fetch members field
+      .select('members')
       .populate({
         path: 'members',
-        select: '_id name email avatar lastSeen status', // Select specific fields
-        options: { sort: { name: 1 } } // Sort members alphabetically
+        select: '_id name email avatar lastSeen status',
+        options: { sort: { name: 1 } }
       })
       .lean();
 
@@ -84,7 +83,6 @@ export async function GET(request) {
       );
     }
 
-    // Transform the response to focus on members
     const response = {
       roomId: id,
       memberCount: room.members.length,
@@ -94,7 +92,7 @@ export async function GET(request) {
         email: member.email,
         avatar: member.avatar,
         lastSeen: member.lastSeen,
-        status: member.status || 'offline' // Default status if not set
+        status: member.status || 'offline'
       }))
     };
 
@@ -115,14 +113,9 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await dbConnect();
-
-    // Validate content type
     validateContentType(request);
-
-    // Parse request body
     const requestBody = await parseRequestBody(request);
 
-    // Extract ID from URL and validate
     const url = new URL(request.url);
     const id = url.pathname.split('/').pop();
 
@@ -134,9 +127,15 @@ export async function POST(request) {
     }
 
     const { userEmail, action, password } = requestBody;
-    console.log(userEmail, action, password, id)
 
-    // Validate input
+    console.log('Room join attempt:', {
+      roomId: id,
+      userEmail,
+      action,
+      isPrivateRoom: undefined, // Will be set after fetching room
+      hasPassword: !!password
+    });
+
     if (!userEmail || !action) {
       return NextResponse.json(
         { error: 'Missing required fields: userEmail and action are required' },
@@ -144,7 +143,6 @@ export async function POST(request) {
       );
     }
 
-    // Validate email format
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
       return NextResponse.json(
         { error: 'Invalid email format' },
@@ -160,7 +158,7 @@ export async function POST(request) {
       );
     }
 
-    const room = await Room.findById(id);
+    const room = await Room.findById(id).select('+password'); // Explicitly include password
     if (!room) {
       return NextResponse.json(
         { error: 'Room not found' },
@@ -168,25 +166,48 @@ export async function POST(request) {
       );
     }
 
+    // Update the log with actual room privacy status
+    console.log('Room details:', {
+      isPrivate: room.isPrivate,
+      hasPassword: !!room.password
+    });
+
     switch (action.toLowerCase()) {
       case 'join':
-        // Check if room is private and validate password
         if (room.isPrivate) {
           if (!password) {
             return NextResponse.json(
-              { error: 'Password is required for private rooms' },
+              {
+                error: 'Password is required for private rooms',
+                code: 'PASSWORD_REQUIRED'
+              },
               { status: 401 }
             );
           }
-          if (room.password !== password) {
+
+          if (!room.password) {
+            console.error('Critical: Private room has no password:', room._id);
             return NextResponse.json(
-              { error: 'Incorrect password for private room' },
+              {
+                error: 'This private room is not properly configured',
+                code: 'INVALID_ROOM_CONFIG'
+              },
+              { status: 500 }
+            );
+          }
+
+          const isMatch = await room.verifyPassword(password);
+          if (!isMatch) {
+            return NextResponse.json(
+              {
+                error: 'Incorrect password for private room',
+                code: 'INCORRECT_PASSWORD'
+              },
               { status: 401 }
             );
           }
         }
 
-        // Add user to members array if not already present
         if (!room.members.some(memberId => memberId.equals(user._id))) {
           room.members.push(user._id);
           await room.save();
@@ -194,7 +215,6 @@ export async function POST(request) {
         break;
 
       case 'leave':
-        // Remove user from members array if present
         room.members = room.members.filter(
           memberId => !memberId.equals(user._id)
         );
@@ -207,7 +227,6 @@ export async function POST(request) {
           { status: 400 }
         );
     }
-    
 
     const updatedRoom = await getPopulatedRoom(id);
     return NextResponse.json({
@@ -217,10 +236,15 @@ export async function POST(request) {
     });
 
   } catch (error) {
-    console.error('Error in room operation:', error);
+    console.error('Error in room operation:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     return NextResponse.json(
       {
         error: error.message || 'Failed to perform room operation',
+        code: 'SERVER_ERROR',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
@@ -231,14 +255,9 @@ export async function POST(request) {
 export async function DELETE(request) {
   try {
     await dbConnect();
-
-    // Validate content type
     validateContentType(request);
-
-    // Parse request body
     const requestBody = await parseRequestBody(request);
 
-    // Extract ID from URL and validate
     const url = new URL(request.url);
     const id = url.pathname.split('/').pop();
 
@@ -258,7 +277,6 @@ export async function DELETE(request) {
       );
     }
 
-    // Validate email format
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
       return NextResponse.json(
         { error: 'Invalid email format' },

@@ -63,7 +63,7 @@ export default function ChatRoom() {
         // Initialize socket connection
         const socket = io(process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001', {
           withCredentials: true,
-          transports: ['websocket'],
+          transports: ['websocket', 'polling'],
           autoConnect: true,
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,
