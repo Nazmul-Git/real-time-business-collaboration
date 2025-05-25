@@ -22,6 +22,9 @@ export default function ChatRoom() {
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
 
+  // Generate unique temp ID for messages
+  const generateTempId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
   // Fetch messages from API
   const fetchMessages = useCallback(async (roomId) => {
     try {
@@ -79,17 +82,23 @@ export default function ChatRoom() {
           });
         });
 
-        // Message handling
+        // Message handling with duplicate check
         socket.on('room-message', (message) => {
           if (message.room.toString() === roomIdFromCookie) {
-            setMessages(prev => [...prev, {
-              _id: message._id,
-              sender: message.sender,
-              content: message.content,
-              room: message.room,
-              timestamp: message.timestamp,
-              read: message.read || false
-            }]);
+            setMessages(prev => {
+              const exists = prev.some(m => 
+                (m._id && m._id === message._id) || 
+                (m.tempId && m.tempId === message.tempId)
+              );
+              return exists ? prev : [...prev, {
+                _id: message._id,
+                sender: message.sender,
+                content: message.content,
+                room: message.room,
+                timestamp: message.timestamp,
+                read: message.read || false
+              }];
+            });
             scrollToBottom();
           }
         });
@@ -118,20 +127,16 @@ export default function ChatRoom() {
           }
         });
 
-        // Message acknowledgement
+        // Message acknowledgement with temp message cleanup
         socket.on('message-ack', (ack) => {
-          setMessages(prev => prev.map(msg =>
-            msg.tempId === ack.tempId ? {
-              ...msg,
-              _id: ack._id,
+          setMessages(prev => [
+            ...prev.filter(msg => msg.tempId !== ack.tempId),
+            {
+              ...ack,
               status: 'delivered',
-              sender: ack.sender,
-              receiver: ack.receiver,
-              content: ack.content,
-              room: ack.room,
               read: ack.read || false
-            } : msg
-          ));
+            }
+          ]);
         });
 
         socketRef.current = socket;
@@ -182,7 +187,7 @@ export default function ChatRoom() {
 
     if (!loggedUser || isSending) return;
 
-    const tempId = Date.now().toString();
+    const tempId = generateTempId();
 
     const message = {
       tempId,
@@ -193,7 +198,6 @@ export default function ChatRoom() {
       status: 'sending',
       read: false
     };
-
 
     try {
       setIsSending(true);
@@ -227,21 +231,6 @@ export default function ChatRoom() {
         ...savedMessage,
         tempId
       });
-
-      // Update UI with final message from server
-      setMessages(prev => prev.map(msg =>
-        msg.tempId === tempId
-          ? {
-            ...savedMessage,
-            status: 'delivered',
-            sender: savedMessage.sender,
-            receiver: savedMessage.receiver,
-            content: savedMessage.content,
-            room: savedMessage.room,
-            read: savedMessage.read || false
-          }
-          : msg
-      ));
 
     } catch (err) {
       console.error('Error sending message:', err);
@@ -390,7 +379,7 @@ export default function ChatRoom() {
           ) : (
             messages.map((message) => (
               <div
-                key={message._id || message.tempId}
+                key={message._id ? `msg-${message._id}` : `temp-${message.tempId}`}
                 className={`flex ${message.sender === loggedUser?._id ? 'justify-end' : 'justify-start'}`}
               >
                 <div

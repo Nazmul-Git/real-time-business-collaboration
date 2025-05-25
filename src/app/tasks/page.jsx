@@ -1,6 +1,7 @@
 'use client';
 
 import Cookies from "js-cookie";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { FcSearch } from "react-icons/fc";
 
@@ -189,7 +190,26 @@ export default function Tasks() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Task Management</h1>
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 rounded-lg">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">📊 Task Management</h1>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center px-5 py-2.5 bg-gray-100 text-gray-800 font-medium rounded-md shadow hover:bg-gray-200 transition duration-200"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/tasks"
+              className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md shadow hover:bg-blue-700 transition duration-200"
+            >
+              All Tasks
+            </Link>
+          </div>
+        </div>
 
         {user && (
           <div className="mb-6 flex flex-col md:flex-row justify-end">
@@ -207,7 +227,7 @@ export default function Tasks() {
         )}
 
         {user && user.role === 'admin' && (
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <div className=" p-6 rounded-lg mb-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Add Task</h2>
             <input
               type="text"
@@ -281,7 +301,7 @@ export default function Tasks() {
         {/* Task List */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {["todo", "in-progress", "done"].map(status => (
-            <div key={status} className="bg-white p-6 rounded-lg shadow-md">
+            <div key={status} className="bg-white p-6 rounded-lg">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">{status.toUpperCase()}</h2>
               {filteredTasks
                 .filter(task => task.status === status)

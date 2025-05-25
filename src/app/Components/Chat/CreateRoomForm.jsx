@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Cookies from 'js-cookie';
 
-export default function CreateRoomForm({ onRoomCreated }) {
+export default function CreateRoomForm({ setOnRoomCreated }) {
   const [name, setName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState('');
@@ -63,6 +63,7 @@ export default function CreateRoomForm({ onRoomCreated }) {
       }
 
       const newRoom = await res.json();
+      setOnRoomCreated(true);
       toast.success('Room created successfully!');
       
       // Reset form
@@ -70,7 +71,6 @@ export default function CreateRoomForm({ onRoomCreated }) {
       setIsPrivate(false);
       setPassword('');
       
-      if (onRoomCreated) onRoomCreated(newRoom);
     } catch (error) {
       console.error('Error creating room:', error);
       toast.error(error.message);
