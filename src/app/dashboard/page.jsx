@@ -15,7 +15,6 @@ import {
 import { Bar, Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -34,7 +33,6 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Get user data from cookies
     const userCookie = Cookies.get('loggedUser');
     if (userCookie) {
       try {
@@ -44,12 +42,9 @@ export default function Dashboard() {
       }
     }
 
-    // Fetch projects and tasks data
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Simulate API calls - replace with actual fetch calls
         const [projectsRes, tasksRes] = await Promise.all([
           fetch('/api/projects'),
           fetch('/api/tasks')
@@ -75,7 +70,6 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // Safe calculation functions
   const calculateProjectStats = () => {
     const total = projects?.length || 0;
     const completed = projects?.filter(p => p.status === 'done').length || 0;
@@ -101,26 +95,20 @@ export default function Dashboard() {
   const projectStats = calculateProjectStats();
   const taskStats = calculateTaskStats();
 
-  // Safe percentage calculation
   const calculatePercentage = (part, total) => {
     return total > 0 ? Math.round((part / total) * 100) : 0;
   };
 
-  // Chart data for projects
   const projectsChartData = {
     labels: ['Done', 'In Progress', 'Overdue'],
     datasets: [
       {
         label: 'Projects',
-        data: [
-          projectStats.completed,
-          projectStats.inProgress,
-          projectStats.overdue
-        ],
+        data: [projectStats.completed, projectStats.inProgress, projectStats.overdue],
         backgroundColor: [
-          'rgba(16, 185, 129, 0.8)', // green
-          'rgba(59, 130, 246, 0.8)',  // blue
-          'rgba(239, 68, 68, 0.8)'     // red
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(239, 68, 68, 0.8)'
         ],
         borderColor: [
           'rgba(16, 185, 129, 1)',
@@ -132,24 +120,17 @@ export default function Dashboard() {
     ],
   };
 
-  // Chart data for tasks by project
   const tasksByProjectData = {
-    labels: projects.map(p => p.title || 'Untitled Project'),
+    labels: projects.map(p => p.title?.slice(0, 15) || 'Untitled'),
     datasets: [
       {
         label: 'Total Tasks',
-        data: projects.map(project =>
-          tasks.filter(task => task.projectId === project._id).length
-        ),
+        data: projects.map(project => tasks.filter(task => task.projectId === project._id).length),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
       },
       {
         label: 'Completed Tasks',
-        data: projects.map(project =>
-          tasks.filter(task =>
-            task.projectId === project._id && task.status === 'done'
-          ).length
-        ),
+        data: projects.map(project => tasks.filter(task => task.projectId === project._id && task.status === 'done').length),
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
       },
     ],
@@ -166,12 +147,12 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
-          <p className="text-gray-600">{error}</p>
+        <div className="text-center p-4 bg-white rounded-lg shadow-md max-w-xs mx-auto">
+          <h2 className="text-lg font-semibold text-red-600 mb-2">Error</h2>
+          <p className="text-xs text-gray-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Retry
           </button>
@@ -182,247 +163,183 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <div className="flex-1 p-8">
-        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 rounded-lg">
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">📊 Dashboard Overview</h1>
-            <p className="text-gray-600 mt-1 text-sm">
-              {projectStats.total} projects • {taskStats.total} tasks
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md shadow hover:bg-blue-700 transition duration-200"
-            >
+      <div className="flex-1 p-3 sm:p-5 md:p-6 w-full max-w-screen-xl mx-auto">
+        {/* Header */}
+        <div className="mb-4 flex flex-col gap-2 p-3 rounded-lg  border border-gray-100">
+          <h1 className="text-xl font-extrabold text-gray-900">📊 Dashboard</h1>
+          <p className="text-xs text-gray-600">
+            {projectStats.total} projects • {taskStats.total} tasks
+          </p>
+          <div className="flex gap-2 mt-1">
+            <Link href="/dashboard" className="text-xs px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md shadow hover:bg-blue-700">
               Dashboard
             </Link>
-            <Link
-              href="/tasks"
-              className="inline-flex items-center px-5 py-2.5 bg-gray-100 text-gray-800 font-medium rounded-md shadow hover:bg-gray-200 transition duration-200"
-            >
+            <Link href="/tasks" className="text-xs px-3 py-1.5 bg-gray-100 text-gray-800 font-medium rounded-md shadow hover:bg-gray-200">
               All Tasks
             </Link>
           </div>
         </div>
 
-
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="w-full max-w-sm md:max-w-full bg-white p-6 rounded-xl shadow-sm border border-gray-100 mx-auto">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Projects</p>
-                <p className="text-2xl font-bold mt-1">{projectStats.total}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {[
+            { 
+              title: 'Total Projects', 
+              value: projectStats.total,
+              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
+              bg: 'bg-blue-50',
+              color: 'text-blue-600',
+              barColor: 'bg-blue-500',
+              percent: calculatePercentage(projectStats.completed, projectStats.total),
+              desc: `${projectStats.completed} completed`
+            },
+            { 
+              title: 'Completed Projects', 
+              value: projectStats.completed,
+              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
+              bg: 'bg-green-50',
+              color: 'text-green-600',
+              desc: projectStats.completed > 0 ? 'On track' : 'No completions'
+            },
+            { 
+              title: 'Total Tasks', 
+              value: taskStats.total,
+              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
+              bg: 'bg-purple-50',
+              color: 'text-purple-600',
+              barColor: 'bg-purple-500',
+              percent: calculatePercentage(taskStats.completed, taskStats.total),
+              desc: `${taskStats.completed} completed`
+            },
+            { 
+              title: 'Overdue', 
+              value: projectStats.overdue + taskStats.overdue,
+              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
+              bg: 'bg-red-50',
+              color: 'text-red-600',
+              desc: `${projectStats.overdue} projects • ${taskStats.overdue} tasks`
+            }
+          ].map((stat, i) => (
+            <div key={i} className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-gray-500">{stat.title}</p>
+                  <p className="text-lg font-bold mt-0.5">{stat.value}</p>
+                </div>
+                <div className={`p-1.5 ${stat.bg} rounded-lg ${stat.color}`}>
+                  {stat.icon}
+                </div>
               </div>
-              <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                <FiCheckSquare size={20} />
-              </div>
+              {stat.barColor && (
+                <div className="mt-2">
+                  <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                    <div className={`h-full ${stat.barColor} rounded-full`} style={{ width: `${stat.percent}%` }}></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{stat.desc}</p>
+                </div>
+              )}
+              {!stat.barColor && <p className="text-xs text-gray-500 mt-1">{stat.desc}</p>}
             </div>
-
-            <div className="mt-4">
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 rounded-full"
-                  style={{
-                    width: `${calculatePercentage(projectStats.completed, projectStats.total)}%`
-                  }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {calculatePercentage(projectStats.completed, projectStats.total)}% completed
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Completed Projects</p>
-                <p className="text-2xl font-bold mt-1">{projectStats.completed}</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg text-green-600">
-                <FiCheckSquare size={20} />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-4">
-              {projectStats.completed > 0 ? 'Last completed recently' : 'No projects completed yet'}
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Tasks</p>
-                <p className="text-2xl font-bold mt-1">{taskStats.total}</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
-                <FiCheckSquare size={20} />
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-purple-500 rounded-full"
-                  style={{
-                    width: `${calculatePercentage(taskStats.completed, taskStats.total)}%`
-                  }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {calculatePercentage(taskStats.completed, taskStats.total)}% completed
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Overdue Items</p>
-                <p className="text-2xl font-bold mt-1">
-                  {projectStats.overdue + taskStats.overdue}
-                </p>
-              </div>
-              <div className="p-3 bg-red-50 rounded-lg text-red-600">
-                <FiCheckSquare size={20} />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-4">
-              {projectStats.overdue} projects • {taskStats.overdue} tasks
-            </p>
-          </div>
+          ))}
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Projects Status</h2>
-            <div className="h-64">
-              <Pie
-                data={projectsChartData}
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+          <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-800 mb-2">Projects Status</h2>
+            <div className="h-40 sm:h-48">
+              <Pie 
+                data={projectsChartData} 
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
                   plugins: {
-                    legend: {
-                      position: 'bottom',
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function (context) {
-                          const label = context.label || '';
-                          const value = context.raw || 0;
-                          const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                          const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                          return `${label}: ${value} (${percentage}%)`;
-                        }
-                      }
-                    }
-                  },
-                }}
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+                  }
+                }} 
               />
             </div>
           </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Tasks by Project</h2>
-            <div className="h-64">
-              <Bar
-                data={tasksByProjectData}
+          <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-800 mb-2">Tasks by Project</h2>
+            <div className="h-40 sm:h-48">
+              <Bar 
+                data={tasksByProjectData} 
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
                   plugins: {
-                    legend: {
-                      position: 'bottom',
-                    },
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      title: {
-                        display: true,
-                        text: 'Number of Tasks'
-                      }
-                    },
-                    x: {
-                      title: {
-                        display: true,
-                        text: 'Projects'
-                      }
-                    }
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } } },
+                    x: { ticks: { font: { size: 9 } } }
                   }
-                }}
+                }} 
               />
             </div>
           </div>
         </div>
 
         {/* Recent Projects */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-800">Recent Projects</h2>
-            <Link href="/projects" className="text-sm text-blue-500 hover:underline">
-              View All Projects
+        <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-sm font-semibold text-gray-800">Recent Projects</h2>
+            <Link href="/projects" className="text-xs text-blue-500 hover:underline">
+              View All
             </Link>
           </div>
+          
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {projects.slice(0, 5).map(project => {
-                  const projectTasks = tasks.filter(t => t.projectId === project._id);
-                  const completedTasks = projectTasks.filter(t => t.status === 'done').length;
-                  const progress = calculatePercentage(completedTasks, projectTasks.length);
+            <div className="min-w-[500px]">
+              {/* Header */}
+              <div className="grid grid-cols-12 gap-2 p-2 bg-gray-50 text-xs font-medium text-gray-500">
+                <div className="col-span-5">Project</div>
+                <div className="col-span-3">Status</div>
+                <div className="col-span-2">Tasks</div>
+                <div className="col-span-2 hidden sm:block">Progress</div>
+              </div>
+              
+              {/* Rows */}
+              {projects.slice(0, 5).map(project => {
+                const projectTasks = tasks.filter(t => t.projectId === project._id);
+                const completedTasks = projectTasks.filter(t => t.status === 'done').length;
+                const progress = calculatePercentage(completedTasks, projectTasks.length);
+                const dueDate = project.dueDate ? new Date(project.dueDate).toLocaleDateString() : 'No deadline';
 
-                  return (
-                    <tr key={project._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Link href={`/projects/${project._id}`} className="text-blue-500 hover:underline">
-                          {project.title || 'Untitled Project'}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${project.status === 'done' ? 'bg-green-100 text-green-800' :
-                          project.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                          {project.status ? project.status.replace('-', ' ') : 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {projectTasks.length} tasks ({completedTasks} completed)
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {project.dueDate ? new Date(project.dueDate).toLocaleDateString() : 'No deadline'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className={`h-2.5 rounded-full ${progress === 100 ? 'bg-green-500' :
-                              progress > 50 ? 'bg-blue-500' :
-                                'bg-yellow-500'
-                              }`}
-                            style={{ width: `${progress}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-xs text-gray-500 mt-1">{progress}%</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                return (
+                  <div key={project._id} className="grid grid-cols-12 gap-2 p-2 border-b hover:bg-gray-50 items-center">
+                    <div className="col-span-5">
+                      <Link href={`/projects/${project._id}`} className="text-xs text-blue-500 hover:underline truncate block">
+                        {project.title?.slice(0, 20) || 'Untitled Project'}
+                      </Link>
+                      <div className="text-xxs text-gray-400 sm:hidden">{dueDate}</div>
+                    </div>
+                    <div className="col-span-3">
+                      <span className={`px-1.5 py-0.5 text-xxs rounded-full ${
+                        project.status === 'done' ? 'bg-green-100 text-green-800' :
+                        project.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {project.status ? project.status.replace('-', ' ') : 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-xs">
+                      {projectTasks.length} <span className="text-gray-400">({completedTasks})</span>
+                    </div>
+                    <div className="col-span-2 hidden sm:flex items-center gap-1">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className={`h-1.5 rounded-full ${
+                          progress === 100 ? 'bg-green-500' :
+                          progress > 50 ? 'bg-blue-500' : 'bg-yellow-500'
+                        }`} style={{ width: `${progress}%` }}></div>
+                      </div>
+                      <span className="text-xxs">{progress}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

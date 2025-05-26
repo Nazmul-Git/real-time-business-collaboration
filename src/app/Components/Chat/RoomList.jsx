@@ -4,14 +4,14 @@ import Cookies from 'js-cookie';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { FiLock, FiUnlock, FiUsers, FiCalendar, FiUser, FiSearch } from 'react-icons/fi';
+import { FiLock, FiUnlock, FiUsers, FiCalendar, FiUser, FiSearch, FiTrash2 } from 'react-icons/fi';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-export default function RoomList({ refreshKey }) {
+export default function RoomList({ refreshKey, setOnRoomCreated }) {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -128,6 +128,33 @@ export default function RoomList({ refreshKey }) {
     room.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleDeleteRoom = async (roomId, userEmail) => {
+    const confirmed = window.confirm('Are you sure you want to delete this room?');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/room/${roomId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userEmail }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Server error:', data);
+        throw new Error(data.error || 'Failed to delete room');
+      }
+
+      console.log('Room deleted:', data);
+      setOnRoomCreated(prev => !prev); // Refresh room list
+    } catch (error) {
+      console.error('Error deleting room:', error);
+      alert(error.message || 'Something went wrong while deleting the room.');
+    }
+  };
   // Loading state
   if (loading) {
     return (
@@ -355,7 +382,7 @@ export default function RoomList({ refreshKey }) {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow h-full">
                   <div className="p-6 h-full flex flex-col">
                     {/* Privacy badge */}
-                    <div className="flex justify-end mb-4">
+                    <div className="flex justify-between mb-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${room.isPrivate
                         ? 'bg-red-500/10 text-red-600 dark:text-red-300'
                         : 'bg-blue-500/10 text-blue-600 dark:text-blue-300'
@@ -372,6 +399,15 @@ export default function RoomList({ refreshKey }) {
                           </>
                         )}
                       </span>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleDeleteRoom(room._id, userEmail)}
+                          className="p-1 text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                          title="Delete room"
+                        >
+                          <FiTrash2 size={18} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Room content */}

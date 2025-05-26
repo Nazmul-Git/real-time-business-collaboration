@@ -22,7 +22,7 @@ const ChatHeader = ({ selectedUser, onlineUsers, formatLastSeen }) => {
           </p>
         </div>
       </div>
-      <button className="p-2 rounded-full hover:bg-gray-100">
+      <button className="p-2 rounded-full mr-4 hover:bg-gray-100">
         <BsThreeDotsVertical />
       </button>
     </div>

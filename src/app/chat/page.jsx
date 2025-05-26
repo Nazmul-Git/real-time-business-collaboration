@@ -7,6 +7,7 @@ import ContactsList from '../Components/Chat/ContactsList';
 import ChatArea from '../Components/Chat/ChatArea';
 import EmptyState from '../Components/Chat/EmptyState';
 import Cookies from 'js-cookie';
+import useIsMobile from '../hooks/useIsMobile';
 
 const Messenger = () => {
   // State
@@ -33,6 +34,8 @@ const Messenger = () => {
   const notificationSoundRef = useRef(null);
   const inputRef = useRef(null);
 
+  const isMobile = useIsMobile();
+
   // Format message time
   const formatMessageTime = (timestamp) => {
     try {
@@ -46,7 +49,7 @@ const Messenger = () => {
   // Format last seen time
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return 'Last seen a long time ago';
-    
+
     try {
       const date = new Date(timestamp);
       if (isToday(date)) {
@@ -120,7 +123,7 @@ const Messenger = () => {
           const filteredUsers = data.filter(user => user._id !== fullUser._id);
           setUsers(filteredUsers);
           setOriginalUsers(filteredUsers);
-          
+
           // Load conversations from localStorage if available
           const savedConversations = Cookies.get('conversations');
           if (savedConversations) {
@@ -212,7 +215,7 @@ const Messenger = () => {
       // Update with database ID if needed
       setConversations(prev => ({
         ...prev,
-        [message.sender]: prev[message.sender].map(msg => 
+        [message.sender]: prev[message.sender].map(msg =>
           msg._id === message._id ? savedMessage.data : msg
         )
       }));
@@ -448,13 +451,13 @@ const Messenger = () => {
       const savedMessage = await response.json();
 
       // Update UI with database-persisted message
-      setMessages(prev => prev.map(msg => 
+      setMessages(prev => prev.map(msg =>
         msg._id === tempId ? { ...savedMessage.data, status: 'delivered' } : msg
       ));
-      
+
       setConversations(prev => ({
         ...prev,
-        [selectedUser._id]: prev[selectedUser._id].map(msg => 
+        [selectedUser._id]: prev[selectedUser._id].map(msg =>
           msg._id === tempId ? { ...savedMessage.data, status: 'delivered' } : msg
         )
       }));
@@ -525,16 +528,16 @@ const Messenger = () => {
     return [...filteredUsers].sort((a, b) => {
       const aLastMsg = getLastMessage(a._id);
       const bLastMsg = getLastMessage(b._id);
-      
+
       // If both have messages, sort by timestamp
       if (aLastMsg.timestamp && bLastMsg.timestamp) {
         return bLastMsg.timestamp - aLastMsg.timestamp;
       }
-      
+
       // If only one has messages, put that one first
       if (aLastMsg.timestamp && !bLastMsg.timestamp) return -1;
       if (!aLastMsg.timestamp && bLastMsg.timestamp) return 1;
-      
+
       // If neither has messages, maintain original order
       return 0;
     });
@@ -551,11 +554,9 @@ const Messenger = () => {
   if (!loggedUser) return <div className="text-center p-8">Please log in to use the chat</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-6">
-      {/* Notification sound element (hidden) */}
-      {/* <audio ref={notificationSoundRef} src="/notification.mp3" preload="auto" /> */}
-
-      <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl overflow-hidden flex flex-col md:flex-row h-[calc(100vh-2rem)]">
+    <div className="max-w-5xl mx-auto bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row h-[calc(100vh-2rem)]">
+      {/* Contacts List - hide on mobile if user is selected */}
+      <div className={`w-full md:w-1/3 h-full ${isMobile && selectedUser ? 'hidden' : ''}`}>
         <ContactsList
           loggedUser={loggedUser}
           users={sortedUsers}
@@ -574,7 +575,10 @@ const Messenger = () => {
           isConnected={isConnected}
           formatMessageTime={formatMessageTime}
         />
+      </div>
 
+      {/* Chat Area - full width on mobile */}
+      <div className={`w-full md:w-2/3 h-full ${isMobile && !selectedUser ? 'hidden' : ''}`}>
         {selectedUser ? (
           <ChatArea
             selectedUser={selectedUser}
@@ -593,13 +597,16 @@ const Messenger = () => {
             messagesEndRef={messagesEndRef}
             inputRef={inputRef}
             formatMessageTime={formatMessageTime}
+            isMobile={isMobile}
+            onBack={() => setSelectedUser(null)} 
             isToday={isToday}
           />
         ) : (
-          <EmptyState />
+          !isMobile && <EmptyState />
         )}
       </div>
     </div>
+
   );
 };
 

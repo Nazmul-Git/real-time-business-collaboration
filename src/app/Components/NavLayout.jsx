@@ -57,7 +57,7 @@ const NavLayout = () => {
         <div className="fixed z-50">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed top-4 right-4 z-50 p-2 bg-gray-800 text-white rounded-lg shadow-lg focus:outline-none md:hidden"
+                className="fixed top-4 right-4 z-50 p-2 bg-gray-800 text-white rounded-full shadow-lg focus:outline-none md:hidden"
             >
                 {isOpen ? (
                     <GiReturnArrow size={24} className="transform rotate-180" />
