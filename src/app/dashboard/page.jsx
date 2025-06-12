@@ -68,7 +68,7 @@ export default function Dashboard() {
     const completed = projects?.filter(p => p.status === 'done').length || 0;
     const inProgress = projects?.filter(p => p.status === 'in-progress').length || 0;
     const overdue = projects?.filter(p =>
-      p.dueDate && new Date(p.dueDate) < new Date() && p.status !== 'done'
+      p.dueDate && new Date(p.dueDate) < new Date() && p.status !== 'todo'
     ).length || 0;
 
     return { total, completed, inProgress, overdue };

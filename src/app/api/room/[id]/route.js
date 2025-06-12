@@ -3,7 +3,6 @@ import Room from '@/app/models/Room';
 import User from '@/app/models/User';
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 

@@ -53,8 +53,6 @@ export default function ChatRoom() {
       try {
         setIsLoading(true);
         const user = JSON.parse(userCookie);
-
-        // Fetch user data
         const res = await fetch(`/api/users?email=${user.email}`);
         if (!res.ok) throw new Error('Failed to fetch user data');
         const userData = await res.json();
