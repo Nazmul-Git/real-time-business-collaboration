@@ -3,14 +3,7 @@ import { useState, useEffect } from 'react';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import {
-  FiHome,
   FiCheckSquare,
-  FiBell,
-  FiPieChart,
-  FiSettings,
-  FiCalendar,
-  FiUser,
-  FiLogOut
 } from 'react-icons/fi';
 import { Bar, Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
