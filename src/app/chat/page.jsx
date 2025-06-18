@@ -77,7 +77,7 @@ const Messenger = () => {
     // Connection events
     socketRef.current.on('connect', () => {
       setIsConnected(true);
-      console.log('Connected to Socket.IO server');
+      console.log('Connected to Socket.IO server', isConnected);
     });
 
     socketRef.current.on('disconnect', () => {
