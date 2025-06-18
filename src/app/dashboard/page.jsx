@@ -2,9 +2,7 @@
 import { useState, useEffect } from 'react';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
-import {
-  FiCheckSquare,
-} from 'react-icons/fi';
+import { FiCheckSquare } from 'react-icons/fi';
 import { Bar, Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 
@@ -64,25 +62,26 @@ export default function Dashboard() {
   }, []);
 
   const calculateProjectStats = () => {
-    const total = projects?.length || 0;
-    const completed = projects?.filter(p => p.status === 'done').length || 0;
-    const inProgress = projects?.filter(p => p.status === 'in-progress').length || 0;
-    const overdue = projects?.filter(p =>
-      p.dueDate && new Date(p.dueDate) < new Date() && p.status !== 'todo'
-    ).length || 0;
+    const total = projects.length;
+    const completed = projects.filter(p => p.status === 'done').length;
+    const inProgress = projects.filter(p => p.status === 'in-progress').length;
+    const overdue = projects.filter(p =>
+      p.dueDate && new Date(p.dueDate) < new Date() && p.status !== 'done'
+    ).length;
 
     return { total, completed, inProgress, overdue };
   };
 
   const calculateTaskStats = () => {
-    const total = tasks?.length || 0;
-    const completed = tasks?.filter(t => t.status === 'done').length || 0;
-    const inProgress = tasks?.filter(t => t.status === 'in-progress').length || 0;
-    const overdue = tasks?.filter(t =>
-      t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done'
-    ).length || 0;
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'done').length;
+    const inProgress = tasks.filter(t => t.status === 'in-progress').length;
+    const todo = tasks.filter(t => t.status === 'todo').length;
+    const overdue = tasks.filter(t =>
+      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
+    ).length;
 
-    return { total, completed, inProgress, overdue };
+    return { total, completed, inProgress, todo, overdue };
   };
 
   const projectStats = calculateProjectStats();
@@ -118,12 +117,14 @@ export default function Dashboard() {
     datasets: [
       {
         label: 'Total Tasks',
-        data: projects.map(project => tasks.filter(task => task.projectId === project._id).length),
+        data: projects.map(project => tasks.filter(task => task.project === project._id).length),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
       },
       {
         label: 'Completed Tasks',
-        data: projects.map(project => tasks.filter(task => task.projectId === project._id && task.status === 'done').length),
+        data: projects.map(project => 
+          tasks.filter(task => task.project === project._id && task.status === 'done').length
+        ),
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
       },
     ],
@@ -158,10 +159,10 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-gray-50">
       <div className="flex-1 p-3 sm:p-5 md:p-6 w-full max-w-screen-xl mx-auto">
         {/* Header */}
-        <div className="mb-4 flex flex-col gap-2 p-3 rounded-lg  border border-gray-100">
+        <div className="mb-4 flex flex-col gap-2 p-3 rounded-lg border border-gray-100">
           <h1 className="text-xl font-extrabold text-gray-900">📊 Dashboard</h1>
           <p className="text-xs text-gray-600">
-            {projectStats.total} projects • {taskStats.total} tasks
+            {projectStats.total} projects • {taskStats.total} tasks • Total: {projectStats.total + taskStats.total} items
           </p>
           <div className="flex gap-2 mt-1">
             <Link href="/dashboard" className="text-xs px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md shadow hover:bg-blue-700">
@@ -187,25 +188,25 @@ export default function Dashboard() {
               desc: `${projectStats.completed} completed`
             },
             { 
-              title: 'Completed Projects', 
-              value: projectStats.completed,
+              title: 'Completed Tasks', 
+              value: taskStats.completed,
               icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
               bg: 'bg-green-50',
               color: 'text-green-600',
-              desc: projectStats.completed > 0 ? 'On track' : 'No completions'
-            },
-            { 
-              title: 'Total Tasks', 
-              value: taskStats.total,
-              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
-              bg: 'bg-purple-50',
-              color: 'text-purple-600',
-              barColor: 'bg-purple-500',
+              barColor: 'bg-green-500',
               percent: calculatePercentage(taskStats.completed, taskStats.total),
-              desc: `${taskStats.completed} completed`
+              desc: `${taskStats.completed} of ${taskStats.total}`
             },
             { 
-              title: 'Overdue', 
+              title: 'Tasks To Do', 
+              value: taskStats.todo,
+              icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
+              bg: 'bg-yellow-50',
+              color: 'text-yellow-600',
+              desc: `${calculatePercentage(taskStats.todo, taskStats.total)}% of total`
+            },
+            { 
+              title: 'Overdue Items', 
               value: projectStats.overdue + taskStats.overdue,
               icon: <FiCheckSquare className="w-3 h-3 sm:w-4 sm:h-4" />,
               bg: 'bg-red-50',
@@ -295,7 +296,7 @@ export default function Dashboard() {
               
               {/* Rows */}
               {projects.slice(0, 5).map(project => {
-                const projectTasks = tasks.filter(t => t.projectId === project._id);
+                const projectTasks = tasks.filter(t => t.project === project._id);
                 const completedTasks = projectTasks.filter(t => t.status === 'done').length;
                 const progress = calculatePercentage(completedTasks, projectTasks.length);
                 const dueDate = project.dueDate ? new Date(project.dueDate).toLocaleDateString() : 'No deadline';
