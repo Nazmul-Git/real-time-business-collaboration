@@ -15,7 +15,7 @@ const ChatArea = ({
   handleSendMessage,
   handleInputChange,
   handleKeyPress,
-  // isConnected,
+  isConnected,
   typingStatus,
   onlineUsers,
   formatLastSeen,
@@ -25,7 +25,6 @@ const ChatArea = ({
   isToday,
   onBack, 
 }) => {
-
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Header with optional back button */}
@@ -106,6 +105,11 @@ const ChatArea = ({
             <FiSend size={20} />
           </button>
         </div>
+        {!isConnected && (
+          <div className="text-xs text-red-500 mt-2">
+            Connection lost - messages will be sent when reconnected
+          </div>
+        )}
       </div>
     </div>
   );

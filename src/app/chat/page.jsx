@@ -67,26 +67,48 @@ const Messenger = () => {
   // Initialize Socket.IO connection
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+
+    console.log('Connecting to:', socketUrl);
+
     socketRef.current = io(socketUrl, {
       transports: ['websocket'],
-      reconnectionAttempts: 5,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       withCredentials: true,
+      autoConnect: true,
+      pingTimeout: 60000,
+      pingInterval: 25000
     });
 
     // Connection events
     socketRef.current.on('connect', () => {
+      console.log('Socket connected');
       setIsConnected(true);
-      console.log('Connected to Socket.IO server', isConnected);
     });
 
-    socketRef.current.on('disconnect', () => {
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
       setIsConnected(false);
-      console.log('Disconnected from Socket.IO server');
+
+      if (reason === 'io server disconnect') {
+        // The server forcibly disconnected the socket
+        socketRef.current.connect();
+      }
     });
 
     socketRef.current.on('connect_error', (err) => {
-      console.error('Connection error:', err);
+      console.error('Connection error:', err.message);
+      setIsConnected(false);
+    });
+
+    socketRef.current.on('error', (err) => {
+      console.error('Socket error:', err);
+    });
+
+    socketRef.current.on('reconnect_attempt', (attempt) => {
+      console.log(`Reconnection attempt ${attempt}`);
     });
 
     socketRef.current.on('online-users', (users) => {
@@ -95,6 +117,7 @@ const Messenger = () => {
 
     return () => {
       if (socketRef.current) {
+        console.log('Cleaning up socket');
         socketRef.current.disconnect();
       }
     };
@@ -553,6 +576,8 @@ const Messenger = () => {
   if (isLoading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
   if (!loggedUser) return <div className="text-center p-8">Please log in to use the chat</div>;
 
+  console.log(isConnected, '????')
+
   return (
     <div className="max-w-5xl mx-auto bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row h-[calc(100vh-2rem)]">
       {/* Contacts List - hide on mobile if user is selected */}
@@ -598,7 +623,7 @@ const Messenger = () => {
             inputRef={inputRef}
             formatMessageTime={formatMessageTime}
             isMobile={isMobile}
-            onBack={() => setSelectedUser(null)} 
+            onBack={() => setSelectedUser(null)}
             isToday={isToday}
           />
         ) : (
