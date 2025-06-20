@@ -82,7 +82,7 @@ export default function RoomList({ refreshKey, setOnRoomCreated }) {
       let password;
       if (isPrivate) {
         password = prompt('Enter room password:');
-        if (password === null) return; // User cancelled
+        if (password === null) return;
         if (!password) {
           toast.error('Password is required for private rooms');
           return;
@@ -149,7 +149,7 @@ export default function RoomList({ refreshKey, setOnRoomCreated }) {
       }
 
       console.log('Room deleted:', data);
-      setOnRoomCreated(prev => !prev); // Refresh room list
+      setOnRoomCreated(prev => !prev); 
     } catch (error) {
       console.error('Error deleting room:', error);
       alert(error.message || 'Something went wrong while deleting the room.');
