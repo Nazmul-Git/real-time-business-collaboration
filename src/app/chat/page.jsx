@@ -71,7 +71,7 @@ const Messenger = () => {
     console.log('Connecting to:', socketUrl);
 
     socketRef.current = io(socketUrl, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
