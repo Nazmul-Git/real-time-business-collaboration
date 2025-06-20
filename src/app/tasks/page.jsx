@@ -42,7 +42,7 @@ export default function Tasks() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks`);
+      const res = await fetch('/api/tasks');
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
       console.log('fetch task = ', data);
