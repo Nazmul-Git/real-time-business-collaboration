@@ -21,14 +21,14 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/login`, {
+      const res = await fetch(`/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
-      data.email = email;
+      data?.email = email;
 
       if (res.status === 200) {
         if (data.twoFactorEnabled) {
@@ -58,7 +58,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/verify`, {
+      const res = await fetch(`/api/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
