@@ -28,7 +28,7 @@ export default function Login() {
       });
 
       const data = await res.json();
-      data?.email = email;
+      data.email = email;
 
       if (res.status === 200) {
         if (data.twoFactorEnabled) {
