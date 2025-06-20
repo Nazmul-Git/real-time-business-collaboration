@@ -9,13 +9,13 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [currentPage, setCurrentPage] = useState(1);
-  const [projectsPerPage] = useState(5); // Number of projects per page
+  const [projectsPerPage] = useState(5);
   const [loading, setLoading] = useState(true);
 
   // Fetch projects from the API
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/projects`);
+      const res = await fetch('/api/projects');
       if (!res.ok) throw new Error("Failed to fetch projects");
       const data = await res.json();
       setProjects(data.data);
