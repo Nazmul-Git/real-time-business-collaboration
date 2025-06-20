@@ -42,7 +42,7 @@ export default function Tasks() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/tasks");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
       console.log('fetch task = ', data);
@@ -54,7 +54,7 @@ export default function Tasks() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/users");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/users`);
       if (!res.ok) throw new Error("Failed to fetch users");
       const data = await res.json();
       setUsers(data);
@@ -69,7 +69,7 @@ export default function Tasks() {
       return;
     }
     try {
-      const res = await fetch("http://localhost:3000/api/tasks", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
