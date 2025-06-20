@@ -184,6 +184,7 @@ const Messenger = () => {
   }, [searchTerm, originalUsers, unreadCounts]);
 
   // Load messages when a user is selected
+  console.log(loggedUser)
   useEffect(() => {
     if (!selectedUser || !loggedUser) return;
 

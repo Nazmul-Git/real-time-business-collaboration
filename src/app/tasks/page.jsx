@@ -116,7 +116,7 @@ export default function Tasks() {
     ));
 
     try {
-      await fetch(`http://localhost:3000/api/tasks/${id}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus, prevStatus: previousStatus }),
@@ -132,7 +132,7 @@ export default function Tasks() {
       const taskToMove = tasks.find(task => task._id === id);
 
       // Call the API to move the task to the projects table
-      const moveResponse = await fetch("http://localhost:3000/api/projects", {
+      const moveResponse = await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task: taskToMove }),
@@ -141,7 +141,7 @@ export default function Tasks() {
       if (!moveResponse.ok) throw new Error("Failed to move task to projects");
 
       // Delete the task from the tasks table
-      await fetch(`http://localhost:3000/api/tasks/${id}`, { method: "DELETE" });
+      await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks/${id}`, { method: "DELETE" });
       setTasks(tasks.filter(task => task._id !== id));
     } catch (error) {
       console.error("Error moving task to projects:", error);
@@ -151,7 +151,7 @@ export default function Tasks() {
   const handleUndoStatus = async (id, prevStatus) => {
     setTasks(tasks.map(task => task._id === id ? { ...task, status: prevStatus, prevStatus: null } : task));
     try {
-      await fetch(`http://localhost:3000/api/tasks/${id}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: prevStatus, prevStatus: null }),
@@ -164,7 +164,7 @@ export default function Tasks() {
   const handleDeleteTask = async (id) => {
     try {
       if (user.role === 'admin') {
-        await fetch(`http://localhost:3000/api/tasks/${id}`, { method: "DELETE" });
+        await fetch(`${process.env.NEXT_PUBLIC_CLIENT_URL}/api/tasks/${id}`, { method: "DELETE" });
         setTasks(tasks.filter(task => task._id !== id));
       } else {
         alert('Only admin can delete this task!');

@@ -48,7 +48,7 @@ const ContactsList = ({
             </div>
             <div className="relative">
               <div className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-500 text-white font-bold text-lg uppercase">
-                {loggedUser.email.charAt(0)}
+                {loggedUser.email?.charAt(0)}
               </div>
               <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             </div>
