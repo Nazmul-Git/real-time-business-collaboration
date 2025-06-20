@@ -120,7 +120,7 @@ export default function RoomList({ refreshKey, setOnRoomCreated }) {
       router.push('/join-room');
     } catch (err) {
       toast.error(err.message || 'An unexpected error occurred');
-      console.error('Join room error:', err);
+      console.error('Join room error:', err.message);
     }
   };
   // Filter rooms based on search term
@@ -148,7 +148,7 @@ export default function RoomList({ refreshKey, setOnRoomCreated }) {
         throw new Error(data.error || 'Failed to delete room');
       }
 
-      console.log('Room deleted:', data);
+      // console.log('Room deleted:', data);
       setOnRoomCreated(prev => !prev); 
     } catch (error) {
       console.error('Error deleting room:', error);

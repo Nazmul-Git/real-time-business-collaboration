@@ -138,7 +138,7 @@ export default function Login() {
                     />
                   </div>
                   <div className="mt-2 text-right">
-                    <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+                    <Link href="" className="text-sm text-blue-600 hover:underline">
                       Forgot password?
                     </Link>
                   </div>
@@ -205,11 +205,11 @@ export default function Login() {
         <div className="bg-gray-50 px-8 py-4 border-t border-gray-200 text-center">
           <p className="text-xs text-gray-500">
             By continuing, you agree to our{' '}
-            <Link href="/terms" className="text-blue-600 hover:underline">
+            <Link href="" className="text-blue-600 hover:underline">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="text-blue-600 hover:underline">
+            <Link href="" className="text-blue-600 hover:underline">
               Privacy Policy
             </Link>
             .
